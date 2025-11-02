@@ -17,18 +17,7 @@ class Usuario:
     funcao: str
     status: str = 'Ativo'
     id: Optional[int] = None
-
-@dataclass
-class Agendamento:
-    id_pessoa: int                  # Chave Estrangeira para Pessoa (Consulente)
-    data_hora: str
-    tipo_servico: str
-    id_facilitador: Optional[int] = None # Chave Estrangeira para Usuario (Sacerdote)
-    status: str = 'Agendado'
-    id: Optional[int] = None
-
-# ----------------- NOVOS MODELOS PARA FEIRINHA -----------------
-
+    
 @dataclass
 class Item:
     nome: str
@@ -36,12 +25,30 @@ class Item:
     valor_venda: float
     status: str = 'Ativo'
     id: Optional[int] = None
+    
+@dataclass
+class Evento:
+    nome: str
+    data_evento: datetime
+    tipo: str
+    status: str = 'Aberto'
+    id: Optional[int] = None
+
+@dataclass
+class Agendamento:
+    id_pessoa: int
+    data_hora: str
+    tipo_servico: str
+    id_evento: int                  # <--- CHAVE ESTRANGEIRA ADICIONADA!
+    id_facilitador: Optional[int] = None
+    status: str = 'Agendado'
+    id: Optional[int] = None
 
 @dataclass
 class Venda:
-    # A Venda principal é a transação:
-    id_pessoa: Optional[int] # Quem comprou (referencia Pessoa)
-    responsavel: str         # Quem registrou (referencia Usuario, ou string simples)
+    id_pessoa: Optional[int]
+    responsavel: str
+    id_evento: int                  # <--- CHAVE ESTRANGEIRA ADICIONADA!
     data_venda: Optional[str] = datetime.now().strftime("%Y-%m-%d")
     id: Optional[int] = None
     

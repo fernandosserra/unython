@@ -118,7 +118,18 @@ class DatabaseManager:
         );
         """
         
-        # 3. Tabela de AGENDAMENTOS (Com Relacionamentos Dimensionais)
+        # 3. Tabela de EVENTOS (Eventos Gerais)
+        eventos_tabel_query = """
+        CREATE TABLE IF NOT EXISTS eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            data_evento TEXT NOT NULL,
+            tipo TEXT,
+            status TEXT DEFAULT 'Aberto'
+        );
+        """
+        
+        # 4. Tabela de AGENDAMENTOS (Com Relacionamentos Dimensionais)
         agendamentos_table_query = """
         CREATE TABLE IF NOT EXISTS agendamentos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,13 +138,15 @@ class DatabaseManager:
             data_hora TEXT NOT NULL,
             tipo_servico TEXT,
             status TEXT DEFAULT 'Agendado',
+            id_evento INTEGER NOT NULL,
             -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
             FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
-            FOREIGN KEY (id_facilitador) REFERENCES usuarios(id)
+            FOREIGN KEY (id_facilitador) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
         
-        # 4. Tabela de Itens
+        # 5. Tabela de Itens
         itens_table_query = """
         CREATE TABLE IF NOT EXISTS itens (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -144,18 +157,20 @@ class DatabaseManager:
         );
         """
         
-        # 5. Tabela de VENDAS (A Transação - O cabeçalho)
+        # 6. Tabela de VENDAS (A Transação - O cabeçalho)
         vendas_table_query = """
         CREATE TABLE IF NOT EXISTS vendas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             id_pessoa INTEGER,                      -- Quem comprou
             data_venda TEXT NOT NULL DEFAULT (date('now')),
+            id_evento INTEGER NOT NULL,             -- Qual evento?
             responsavel TEXT,                       -- Quem registrou (pode ser o nome de um Usuario)
-            FOREIGN KEY (id_pessoa) REFERENCES pessoas(id)
+            FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
         
-        # 6. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
+        # 7. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
         itens_venda_table_query = """
         CREATE TABLE IF NOT EXISTS itens_venda (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -171,6 +186,7 @@ class DatabaseManager:
         # Execução das consultas para estabelecer a ordem
         self.execute_query(usuarios_table_query, commit=True)
         self.execute_query(pessoas_table_query, commit=True)
+        self.execute_query(eventos_tabel_query, commit=True)
         self.execute_query(agendamentos_table_query, commit=True)
         self.execute_query(itens_table_query, commit=True)
         self.execute_query(vendas_table_query, commit=True)

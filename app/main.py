@@ -9,7 +9,7 @@ from datetime import datetime
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 # Importa TODAS as dependências, incluindo os Models para criação de objetos
-from src.utils.database_manager import DatabaseManager
+from src.utils.database_manager import DatabaseManager, DB_PATH
 from src.utils.config import get_alias
 from src.utils.models import Pessoa, Usuario, Agendamento, Item, Venda, ItemVenda
 from src.modules.pessoa import PessoaService
@@ -17,8 +17,10 @@ from src.modules.usuario import UsuarioService
 from src.modules.agendamento import AgendamentoService
 from src.modules.venda import VendaService
 from src.modules.item import ItemService
+from src.modules.relatorio import RelatorioService
+from src.modules.backup import fazer_backup_google_drive
 
-
+# Função Principal
 def main():
     ALIAS_PESSOA = get_alias("PESSOA")
     ALIAS_FACILITADOR = get_alias("FACILITADOR")
@@ -144,6 +146,28 @@ def main():
             print(f" -> Venda COMPLETA (Cabeçalho + Detalhes) registrada com ID: {id_venda_completa}")
         else:
              print(" -> Distorção Espaço-Temporal: Venda Falhou. Rollback executado.")    
+    
+    # F. GERAR RELATÓRIOS (A Análise Genial)
+        relatorio_service = RelatorioService(db_manager)
+        
+        # 1. Faturamento Mensal
+        print("\n--- Relatório de Análise Genial (Faturamento Mensal) ---")
+        faturamento = relatorio_service.gerar_faturamento_mensal()
+        if faturamento:
+            for linha in faturamento:
+                print(f" -> Mês {linha['mes']}: Total de Vendas: R$ {linha['faturamento_total']:.2f}")
+        else:
+            print(" -> Nenhuma venda encontrada para análise.")
+
+
+        # 2. Agendamentos Pendentes
+        print("\n--- Relatório de Análise Genial (Agendamentos Pendentes) ---")
+        agendamentos = relatorio_service.gerar_detalhe_agendamentos_pendentes()
+        if agendamentos:
+            for agendamento in agendamentos:
+                print(f" -> Agendado: {agendamento['data_hora']} | {agendamento['pessoa']} com {agendamento['facilitador']} ({agendamento['tipo_servico']})")
+        else:
+            print(" -> Nenhum agendamento pendente encontrado.")
 
     except ConnectionError as e:
         print(f"\nERRO FATAL (Distorção Espaço-Temporal): Falha ao conectar ao DB. {e}")
@@ -151,7 +175,8 @@ def main():
         print(f"\nERRO INESPERADO: Falha no experimento: {e}")
     finally:
         if db_manager.conn:
-             db_manager.disconnect()
+            fazer_backup_google_drive(DB_PATH)
+            db_manager.disconnect()
         print("\n--- Protocolo de Inicialização Finalizado. Ordem Restaurada. ---")
 
 # Garantindo que a função main seja o ponto de partida

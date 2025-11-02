@@ -7,16 +7,24 @@ class ItemService:
         self.db = db_manager
 
     def registrar_item(self, item: Item) -> Optional[int]:
-        """Registra um novo item e retorna o ID (O Protocolo de Inserção Genial)."""
+        """Registra um item ou retorna o ID se o nome já existir (UPSERT LÓGICO)."""
+        item_existente = self.buscar_item_por_nome(item.nome)
+        
+        if item_existente:
+            # Item já existe, retorna o ID do existente e atualiza os valores de venda/compra
+            self.editar_item(item_existente.id, item.nome, item.valor_compra, item.valor_venda)
+            print(f" (Alerta Washu: Item '{item.nome}' atualizado e usando ID: {item_existente.id})")
+            return item_existente.id
+        
+        # Se não existir, insere um novo
         query = "INSERT INTO itens (nome, valor_compra, valor_venda, status) VALUES (?, ?, ?, ?)"
         values = (item.nome, item.valor_compra, item.valor_venda, item.status)
-        # Retorna o lastrowid!
         return self.db.execute_query(query, values, commit=True)
     
-    def buscar_item_por_nome(self, nome: str) -> Item:
-        query = "SELECT id, nome, valor_compra, valor_venda FROM itens WHERE nome = ?"
-        values = (nome,)
-        columns, data = self.db.execute_query(query, values, fetch_one=True)
+    def buscar_item_por_nome(self, nome: str) -> Optional[Item]:
+        """Busca um item pelo nome e retorna o objeto Item."""
+        query = "SELECT id, nome, valor_compra, valor_venda, status FROM itens WHERE nome = ?"
+        columns, data = self.db.execute_query(query, (nome,), fetch_one=True)
         if data:
             return Item(**dict(zip(columns, data)))
         return None
