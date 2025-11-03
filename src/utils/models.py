@@ -27,6 +27,17 @@ class Item:
     id: Optional[int] = None
     
 @dataclass
+class MovimentoEstoque:
+    id_item: int
+    quantidade: int
+    tipo_movimento: str             # 'Entrada' ou 'Saída'
+    origem_recurso: str = 'Doação'  # Ex: 'Doação', 'Compra_Fundo_Feirinha'
+    id_usuario: Optional[int] = None
+    id_evento: Optional[int] = None
+    data_movimento: Optional[str] = datetime.now().strftime("%Y-%m-%d")
+    id: Optional[int] = None
+    
+@dataclass
 class Evento:
     nome: str
     data_evento: datetime

@@ -10,25 +10,25 @@ class AgendamentoService:
         self.db = db_manager
 
     def registrar_agendamento(self, agendamento: Agendamento):
-        """Registra um agendamento usando os IDs de Pessoa e Facilitador."""
+    # A query precisa do id_evento
         query = """
             INSERT INTO agendamentos 
-            (id_pessoa, id_facilitador, data_hora, tipo_servico, status) 
-            VALUES (?, ?, ?, ?, ?)
+            (id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento) 
+            VALUES (?, ?, ?, ?, ?, ?) -- Adicione um '?'
         """
         params = (
             agendamento.id_pessoa,
             agendamento.id_facilitador,
             agendamento.data_hora,
             agendamento.tipo_servico,
-            agendamento.status
-        )
-        # Retorna o ID do novo agendamento, se a função execute_query estiver correta.
+            agendamento.status,
+            agendamento.id_evento  # <-- NOVO PARÂMETRO
+    )
         return self.db.execute_query(query, params, commit=True)
 
     def buscar_agendamentos(self, id_pessoa: Optional[int] = None, id_facilitador: Optional[int] = None) -> List[Agendamento]:
         """Busca agendamentos com filtros opcionais por Pessoa ou Facilitador."""
-        query = "SELECT id, id_pessoa, id_facilitador, data_hora, tipo_servico, status FROM agendamentos"
+        query = "SELECT id, id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento FROM agendamentos"
         conditions = []
         params = []
         

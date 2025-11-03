@@ -52,10 +52,6 @@ class DatabaseManager:
             # print("Conexão ao DB fechada. Ordem restaurada.")
 
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False, commit=False):
-        """
-        Executa qualquer comando SQL. O Centro de Comando Genial!
-        Retorna (colunas, dados) para consultas SELECT, ou True/False para comandos.
-        """
         if not self.conn:
             raise ConnectionError("A conexão não foi estabelecida. Chame a Washu!")
 
@@ -65,23 +61,32 @@ class DatabaseManager:
             else:
                 self.cursor.execute(query)
 
+            # 1. Tenta capturar o ID da linha recém-inserida
+            last_id = self.cursor.lastrowid if self.cursor.lastrowid is not None else None
+
             if commit:
                 self.conn.commit()
-                # ESTE é o retorno obrigatório para INSERT/UPDATE/DELETE que usam autoincrement
-                return self.cursor.lastrowid # <--- DEVE RETORNAR O ID INTEIRO
+                # 2. Se comitou, retorna o ID (que já foi capturado)
+                return last_id if last_id is not None else True
 
+            # 3. Tratamento de SELECT (fetch)
             if fetch_one or fetch_all:
                 if self.cursor.description:
                     columns = [desc[0] for desc in self.cursor.description]
                     data = self.cursor.fetchone() if fetch_one else self.cursor.fetchall()
                     return columns, data
-                return None, None # Se não houver descrição, retorna vazio
+                return None, None 
 
-            return True # Para comandos como INSERT, UPDATE, DELETE
-        
+            # 4. CRÍTICO: Se é um INSERT/UPDATE SEM COMMIT, retorna o ID capturado.
+            # Isso corrige o problema do ID: True no VendaService.
+            if last_id is not None:
+                return last_id 
+            
+            return True # Se não é SELECT, não tem commit, e não tem ID, apenas retorna True
+
         except sqlite3.Error as e:
             print(f"Distorção Espaço-Temporal SQL detectada: {e}")
-            self.conn.rollback() # Reverte a operação para manter a integridade universal
+            self.conn.rollback() 
             return False
 
     def create_tables(self):
@@ -157,7 +162,26 @@ class DatabaseManager:
         );
         """
         
-        # 6. Tabela de VENDAS (A Transação - O cabeçalho)
+        # 6. Tabela de Estoque (Para Controlar Entradas e Saídas)
+        
+        estoque_table_query = """
+        CREATE TABLE IF NOT EXISTS estoque (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_item INTEGER NOT NULL,
+            quantidade INTEGER NOT NULL,
+            tipo_movimento TEXT NOT NULL,
+            data_movimento TEXT NOT NULL DEFAULT (date('now')),
+            origem_recurso TEXT DEFAULT 'Doação',
+            id_usuario INTEGER,
+            id_evento  INTEGER,
+            -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
+            FOREIGN KEY (id_item) REFERENCES itens(id),
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """ 
+        
+        # 7. Tabela de VENDAS (A Transação - O cabeçalho)
         vendas_table_query = """
         CREATE TABLE IF NOT EXISTS vendas (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -170,7 +194,7 @@ class DatabaseManager:
         );
         """
         
-        # 7. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
+        # 8. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
         itens_venda_table_query = """
         CREATE TABLE IF NOT EXISTS itens_venda (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -189,6 +213,7 @@ class DatabaseManager:
         self.execute_query(eventos_tabel_query, commit=True)
         self.execute_query(agendamentos_table_query, commit=True)
         self.execute_query(itens_table_query, commit=True)
+        self.execute_query(estoque_table_query, commit=True)
         self.execute_query(vendas_table_query, commit=True)
         self.execute_query(itens_venda_table_query, commit=True)
         
