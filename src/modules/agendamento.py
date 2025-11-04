@@ -14,7 +14,7 @@ class AgendamentoService:
         query = """
             INSERT INTO agendamentos 
             (id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento) 
-            VALUES (?, ?, ?, ?, ?, ?) -- Adicione um '?'
+            VALUES (?, ?, ?, ?, ?, ?) RETURNING id
         """
         params = (
             agendamento.id_pessoa,
@@ -26,22 +26,30 @@ class AgendamentoService:
     )
         return self.db.execute_query(query, params, commit=True)
 
-    def buscar_agendamentos(self, id_pessoa: Optional[int] = None, id_facilitador: Optional[int] = None) -> List[Agendamento]:
-        """Busca agendamentos com filtros opcionais por Pessoa ou Facilitador."""
+    def buscar_agendamentos(self, id_pessoa: Optional[int] = None, id_facilitador: Optional[int] = None, status: Optional[str] = None) -> List[Agendamento]:
+        """Busca agendamentos com filtros opcionais por Pessoa, Facilitador ou Status."""
+        
         query = "SELECT id, id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento FROM agendamentos"
         conditions = []
         params = []
         
         if id_pessoa is not None:
-            conditions.append("id_pessoa = ?")
+            conditions.append("id_pessoa = %s") # Postgres placeholder
             params.append(id_pessoa)
         
         if id_facilitador is not None:
-            conditions.append("id_facilitador = ?")
+            conditions.append("id_facilitador = %s") # Postgres placeholder
             params.append(id_facilitador)
+            
+        if status is not None: # <--- NOVA LÓGICA DE FILTRO POR STATUS
+            conditions.append("status = %s") # Postgres placeholder
+            params.append(status)
             
         if conditions:
             query += " WHERE " + " AND ".join(conditions)
+            
+        # Adicionamos ORDER BY para consistência
+        query += " ORDER BY data_hora DESC"
             
         columns, results = self.db.execute_query(query, tuple(params), fetch_all=True)
         

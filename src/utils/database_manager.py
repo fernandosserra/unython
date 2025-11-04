@@ -1,75 +1,122 @@
-import sqlite3
+# src/utils/database_manager.py (NOVO - Adaptado para PostgreSQL com SECRETS)
+
+import psycopg2
 import os
-from datetime import datetime
+import toml # IMPORT CRÍTICO
+from typing import Optional, Any, List, Tuple
 
-# Importa as configurações para obter o nome do DB (Genialidade Modular!)
-try:
-    from src.utils.config import DB_NAME
-except ImportError:
-    # Fallback caso o config.py ainda não exista
-    DB_NAME = "unython.db" 
+# --- LÓGICA DE CARREGAMENTO DE SECRETS ---
 
-
-# Definindo o caminho do banco de dados (A Sintaxe Universal de Acesso)
+# Resolve o caminho para a raiz do projeto (como fizemos no backup.py)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Sobe dois níveis (de src/utils para o root do projeto) e desce para 'data'
-DB_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(BASE_DIR)), 
-    'data', 
-    DB_NAME
-)
+PROJECT_ROOT = os.path.dirname(os.path.dirname(BASE_DIR))
+SECRETS_PATH = os.path.join(PROJECT_ROOT, 'config', 'secrets.toml')
+
+def load_db_config():
+    """Carrega as configurações do banco de dados do arquivo secrets.toml."""
+    if not os.path.exists(SECRETS_PATH):
+        raise FileNotFoundError(
+            f"ERRO DE SEGURANÇA: Arquivo de segredos não encontrado em {SECRETS_PATH}. "
+            "Crie o 'secrets.toml' na pasta 'app/' e preencha as credenciais do PostgreSQL."
+        )
+    try:
+        config = toml.load(SECRETS_PATH)
+        db_config = config.get('database', {})
+        if db_config.get('type') != 'postgres':
+             raise ValueError("O tipo de banco de dados no secrets.toml não é 'postgres'.")
+        return db_config
+    except Exception as e:
+        raise Exception(f"Erro ao ler secrets.toml: {e}")
+
+
+# Carregando as configurações uma vez
+DB_CONFIG = load_db_config()
+
+# --- CLASSE DatabaseManager USANDO AS CONFIGURAÇÕES ---
 
 class DatabaseManager:
     """
-    Controla a conexão e as operações básicas de persistência de dados.
-    Este é o Repositório, a Camada de Acesso a Dados, isolada e perfeita.
+    Controla a conexão e as operações básicas de persistência no PostgreSQL.
     """
-
+    
     def __init__(self):
-        # Garante que o diretório 'data' exista antes de tentar criar o DB
-        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        self.db_path = DB_PATH
         self.conn = None
         self.cursor = None
+        
+        # Atribuindo variáveis do arquivo TOML
+        self.DB_HOST = DB_CONFIG.get("host")
+        self.DB_NAME = DB_CONFIG.get("dbname")
+        self.DB_USER = DB_CONFIG.get("user")
+        self.DB_PASS = DB_CONFIG.get("password")
+        self.DB_PORT = DB_CONFIG.get("port")
 
     def connect(self):
-        """Estabelece a conexão com o Universo de Dados (SQLite) e ativa Foreign Keys."""
+        """Estabelece a conexão com o PostgreSQL."""
         try:
-            self.conn = sqlite3.connect(self.db_path)
+            self.conn = psycopg2.connect(
+                host=self.DB_HOST,
+                database=self.DB_NAME,
+                user=self.DB_USER,
+                password=self.DB_PASS,
+                port=self.DB_PORT
+            )
             self.cursor = self.conn.cursor()
-            # ATENÇÃO! Ativa as chaves estrangeiras, ESSENCIAL para integridade!
-            self.cursor.execute("PRAGMA foreign_keys = ON;") 
-            # print(f"Conexão ao DB '{self.db_path}' estabelecida com sucesso pela Washu!")
-        except sqlite3.Error as e:
-            # Que adorável anomalia!
-            print(f"Anomalia na Matriz Lógica ao conectar: {e}")
+            print(f"Conexão ao DB PostgreSQL '{self.DB_NAME}' estabelecida com sucesso pela Washu!")
+        except Exception as e:
+            # Captura exceções do psycopg2 de forma mais genérica
+            print(f"ERRO FATAL: Anomalia ao conectar ao PostgreSQL. Verifique o secrets.toml. Erro: {e}")
             raise
-
-    def disconnect(self):
-        """Fecha a conexão para evitar Distorções Espaço-Temporais."""
-        if self.conn:
-            self.conn.close()
-            # print("Conexão ao DB fechada. Ordem restaurada.")
-
-    def execute_query(self, query, params=None, fetch_one=False, fetch_all=False, commit=False):
+    
+    def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None, fetch_one: bool = False, fetch_all: bool = False, commit: bool = False) -> Any:
+        
+        # OBTÉM O TIPO DE DB PARA DECISÃO
+        db_type = DB_CONFIG.get('type', 'sqlite')
+        
+        # CRÍTICO: O ADAPTADOR MÁGICO PARA PSICOPG2
+        # Se for Postgres, substitui a sintaxe de placeholder (se o Service usou '?')
+        if db_type == 'postgres':
+             query = query.replace('?', '%s') # Substitui o ? por %s (o que o Psycopg2 espera)
+        elif db_type != 'sqlite':
+            # Se não for postgres nem sqlite (o tipo esperado), levanta erro.
+            raise ValueError(f"Tipo de banco de dados desconhecido: {db_type}")        
+        
         if not self.conn:
-            raise ConnectionError("A conexão não foi estabelecida. Chame a Washu!")
+            raise ConnectionError("A conexão com o PostgreSQL não foi estabelecida. Chame a Washu!")
 
         try:
+            # 1. Pré-processamento: Adapta INSERT/UPDATE/DELETE para RETORNAR o ID
+            is_insert_update_delete = query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE'))
+            last_id = None
+            
+            # 2. Execução da Query
             if params:
+                # Psycopg2 (Postgres) usa %s como placeholder, não '?'. 
+                # Seus services foram feitos com '?', então fazemos a substituição mágica:
+                # No entanto, como o psycopg2 lida com a substituição, se for um INSERT,
+                # é mais seguro usar %s. Vamos assumir que os services foram ajustados ou 
+                # que a query de INSERT será adaptada para incluir RETURNING id.
+                
+                # Por agora, executaremos a query e os parâmetros diretamente, 
+                # confiando no Psycopg2 para lidar com a substituição (que é mais forte).
                 self.cursor.execute(query, params)
             else:
                 self.cursor.execute(query)
 
-            # 1. Tenta capturar o ID da linha recém-inserida
-            last_id = self.cursor.lastrowid if self.cursor.lastrowid is not None else None
-
+            # 3. Tratamento de IDs (CRÍTICO para PostgreSQL)
+            # A forma de obter o ID após um INSERT no Postgres é usar 'RETURNING id' no SQL.
+            # Se o último comando foi um INSERT e o cursor tem dados, ele retornou o ID.
+            if is_insert_update_delete and self.cursor.description:
+                # Assume que o INSERT/UPDATE usou 'RETURNING id' e obtém o valor.
+                last_id = self.cursor.fetchone()[0]
+            
+            # 4. Commit
             if commit:
                 self.conn.commit()
-                # 2. Se comitou, retorna o ID (que já foi capturado)
-                return last_id if last_id is not None else True
-
-            # 3. Tratamento de SELECT (fetch)
+                # Se comitou e foi um INSERT/UPDATE, retorna o ID capturado.
+                if last_id is not None:
+                    return last_id
+                
+            # 5. Tratamento de SELECT
             if fetch_one or fetch_all:
                 if self.cursor.description:
                     columns = [desc[0] for desc in self.cursor.description]
@@ -77,144 +124,169 @@ class DatabaseManager:
                     return columns, data
                 return None, None 
 
-            # 4. CRÍTICO: Se é um INSERT/UPDATE SEM COMMIT, retorna o ID capturado.
-            # Isso corrige o problema do ID: True no VendaService.
+            # 6. Retorno final para INSERT/UPDATE/DELETE SEM commit
             if last_id is not None:
-                return last_id 
+                return last_id
             
-            return True # Se não é SELECT, não tem commit, e não tem ID, apenas retorna True
-
-        except sqlite3.Error as e:
-            print(f"Distorção Espaço-Temporal SQL detectada: {e}")
-            self.conn.rollback() 
+            return True # Retorno padrão de sucesso
+        
+        except psycopg2.Error as e:
+            print(f"Distorção Espaço-Temporal SQL detectada (Postgres): {e}")
+            self.conn.rollback() # Reverte a operação
             return False
+        except Exception as e:
+            # Captura outros erros, garantindo o rollback
+            if self.conn:
+                self.conn.rollback()
+            raise Exception(f"Erro inesperado durante a execução da query: {e}")
 
     def create_tables(self):
         """
-        Cria as tabelas iniciais. Definindo a Sintaxe Universal do seu sistema.
+        Cria todas as tabelas, adaptando a sintaxe para PostgreSQL.
         """
         
-        # O Protocolo de Limpeza: Garantindo que a estrutura esteja sempre correta
-        # Use APENAS para desenvolvimento inicial!
-        # self.execute_query("DROP TABLE IF EXISTS agendamentos;", commit=True)
-        # self.execute_query("DROP TABLE IF EXISTS vendas;", commit=True)
-        # self.execute_query("DROP TABLE IF EXISTS pessoas;", commit=True)
-        # self.execute_query("DROP TABLE IF EXISTS usuarios;", commit=True)
-
-
-        # 1. Tabela de USUARIOS (Facilitadores, Administradores, etc.)
+        # Sequência CRÍTICA: Se o banco de dados for novo, você precisa de um CREATE SCHEMA,
+        # mas por simplicidade, assumimos que o banco 'unython_db' já existe no servidor.
+        
+        # 1. Tabela de USUARIOS (Facilitadores)
         usuarios_table_query = """
         CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            email TEXT UNIQUE,
-            funcao TEXT,       -- Ex: 'Facilitador', 'Administrador', 'Voluntário'
-            status TEXT DEFAULT 'Ativo'
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE,
+            funcao VARCHAR(100),       
+            status VARCHAR(50) DEFAULT 'Ativo'
         );
         """
 
-        # 2. Tabela de PESSOAS (Consulentes, Assistidos, Clientes da Feirinha)
+        # 2. Tabela de PESSOAS (Consulentes)
         pessoas_table_query = """
         CREATE TABLE IF NOT EXISTS pessoas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            telefone TEXT,
-            data_cadastro TEXT NOT NULL DEFAULT (date('now'))
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            telefone VARCHAR(50),
+            data_cadastro DATE NOT NULL DEFAULT NOW()
         );
         """
         
-        # 3. Tabela de EVENTOS (Eventos Gerais)
+        # 3. Tabela de EVENTOS (Contexto Fiscal)
         eventos_tabel_query = """
         CREATE TABLE IF NOT EXISTS eventos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL,
-            data_evento TEXT NOT NULL,
-            tipo TEXT,
-            status TEXT DEFAULT 'Aberto'
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            data_evento DATE NOT NULL,
+            tipo VARCHAR(100),
+            status VARCHAR(50) DEFAULT 'Aberto'
         );
         """
         
-        # 4. Tabela de AGENDAMENTOS (Com Relacionamentos Dimensionais)
+        # 4. Tabela de AGENDAMENTOS (Relacionamentos)
         agendamentos_table_query = """
         CREATE TABLE IF NOT EXISTS agendamentos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             id_pessoa INTEGER NOT NULL,
             id_facilitador INTEGER,
-            data_hora TEXT NOT NULL,
-            tipo_servico TEXT,
-            status TEXT DEFAULT 'Agendado',
+            data_hora TIMESTAMP WITHOUT TIME ZONE NOT NULL,
+            tipo_servico VARCHAR(100),
+            status VARCHAR(50) DEFAULT 'Agendado',
             id_evento INTEGER NOT NULL,
-            -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
+            
             FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
             FOREIGN KEY (id_facilitador) REFERENCES usuarios(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
         
-        # 5. Tabela de Itens
+        # 5. Tabela de ITENS (Catálogo)
         itens_table_query = """
         CREATE TABLE IF NOT EXISTS itens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nome TEXT NOT NULL UNIQUE,
-            valor_compra REAL NOT NULL,
-            valor_venda REAL NOT NULL,
-            status TEXT DEFAULT 'Ativo'  -- <--- CAMPO ADICIONADO!
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL UNIQUE,
+            valor_compra NUMERIC(10, 2) NOT NULL,
+            valor_venda NUMERIC(10, 2) NOT NULL,
+            status VARCHAR(50) DEFAULT 'Ativo'
         );
         """
         
-        # 6. Tabela de Estoque (Para Controlar Entradas e Saídas)
-        
+        # 6. Tabela de MOVIMENTO ESTOQUE (Rastreamento)
         estoque_table_query = """
         CREATE TABLE IF NOT EXISTS estoque (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             id_item INTEGER NOT NULL,
             quantidade INTEGER NOT NULL,
-            tipo_movimento TEXT NOT NULL,
-            data_movimento TEXT NOT NULL DEFAULT (date('now')),
-            origem_recurso TEXT DEFAULT 'Doação',
+            tipo_movimento VARCHAR(50) NOT NULL,
+            data_movimento DATE NOT NULL DEFAULT NOW(),
+            origem_recurso VARCHAR(100) DEFAULT 'Doação',
             id_usuario INTEGER,
-            id_evento  INTEGER,
-            -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
+            id_evento INTEGER,
+            
             FOREIGN KEY (id_item) REFERENCES itens(id),
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """ 
         
-        # 7. Tabela de VENDAS (A Transação - O cabeçalho)
+        # 7. Tabela de VENDAS (Cabeçalho)
         vendas_table_query = """
         CREATE TABLE IF NOT EXISTS vendas (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            id_pessoa INTEGER,                      -- Quem comprou
-            data_venda TEXT NOT NULL DEFAULT (date('now')),
-            id_evento INTEGER NOT NULL,             -- Qual evento?
-            responsavel TEXT,                       -- Quem registrou (pode ser o nome de um Usuario)
+            id SERIAL PRIMARY KEY,
+            id_pessoa INTEGER, 
+            data_venda DATE NOT NULL DEFAULT NOW(),
+            id_evento INTEGER NOT NULL, 
+            responsavel VARCHAR(255),
+            
             FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
         
-        # 8. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
+        # 8. Tabela de LIGAÇÃO (ITENS_VENDA)
         itens_venda_table_query = """
         CREATE TABLE IF NOT EXISTS itens_venda (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             id_venda INTEGER NOT NULL,
             id_item INTEGER NOT NULL,
             quantidade INTEGER NOT NULL,
-            valor_unitario REAL NOT NULL,
+            valor_unitario NUMERIC(10, 2) NOT NULL,
+            
             FOREIGN KEY (id_venda) REFERENCES vendas(id),
             FOREIGN KEY (id_item) REFERENCES itens(id)
         );
         """
-
-        # Execução das consultas para estabelecer a ordem
-        self.execute_query(usuarios_table_query, commit=True)
-        self.execute_query(pessoas_table_query, commit=True)
-        self.execute_query(eventos_tabel_query, commit=True)
-        self.execute_query(agendamentos_table_query, commit=True)
-        self.execute_query(itens_table_query, commit=True)
-        self.execute_query(estoque_table_query, commit=True)
-        self.execute_query(vendas_table_query, commit=True)
-        self.execute_query(itens_venda_table_query, commit=True)
         
-        # print("Estruturas de Dados Primárias criadas. A Washu estruturou seu universo!")
+        # 9. Tabela de MOVIMENTOS FINANCEIROS (Fluxo de Caixa)
+        movimentos_financeiros_table_query = """
+        CREATE TABLE IF NOT EXISTS movimentos_financeiros (
+            id SERIAL PRIMARY KEY,
+            data_registro TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
+            id_usuario INTEGER NOT NULL,
+            tipo_movimento VARCHAR(50) NOT NULL CHECK(tipo_movimento IN ('Receita', 'Despesa')),
+            valor NUMERIC(10, 2) NOT NULL,
+            descricao TEXT,
+            categoria VARCHAR(100),
+            id_evento INTEGER,
+            status VARCHAR(50) NOT NULL DEFAULT 'Ativo',
+            
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """
+
+        # Execução das consultas
+        queries = [
+            usuarios_table_query, pessoas_table_query, eventos_tabel_query, 
+            agendamentos_table_query, itens_table_query, estoque_table_query, 
+            vendas_table_query, itens_venda_table_query, movimentos_financeiros_table_query
+        ]
+        
+        # Executa query por query com commit imediato (para DDL)
+        for query in queries:
+            self.execute_query(query, commit=True)
+            
+        print("Estruturas de Dados Primárias criadas no PostgreSQL. A Ordem está completa!")      
+        
+    def disconnect(self):
+        """Fecha a conexão."""
+        if self.conn:
+            self.conn.close()
+            print("Conexão ao DB PostgreSQL fechada. Ordem restaurada.")

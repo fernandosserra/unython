@@ -1,0 +1,242 @@
+import sqlite3
+import os
+from datetime import datetime
+
+# Importa as configurações para obter o nome do DB (Genialidade Modular!)
+try:
+    from src.utils.config import DB_NAME
+except ImportError:
+    # Fallback caso o config.py ainda não exista
+    DB_NAME = "unython.db" 
+
+
+# Definindo o caminho do banco de dados (A Sintaxe Universal de Acesso)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Sobe dois níveis (de src/utils para o root do projeto) e desce para 'data'
+DB_PATH = os.path.join(
+    os.path.dirname(os.path.dirname(BASE_DIR)), 
+    'data', 
+    DB_NAME
+)
+
+class DatabaseManager:
+    """
+    Controla a conexão e as operações básicas de persistência de dados.
+    Este é o Repositório, a Camada de Acesso a Dados, isolada e perfeita.
+    """
+
+    def __init__(self):
+        # Garante que o diretório 'data' exista antes de tentar criar o DB
+        os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+        self.db_path = DB_PATH
+        self.conn = None
+        self.cursor = None
+
+    def connect(self):
+        """Estabelece a conexão com o Universo de Dados (SQLite) e ativa Foreign Keys."""
+        try:
+            self.conn = sqlite3.connect(self.db_path)
+            self.cursor = self.conn.cursor()
+            # ATENÇÃO! Ativa as chaves estrangeiras, ESSENCIAL para integridade!
+            self.cursor.execute("PRAGMA foreign_keys = ON;") 
+            # print(f"Conexão ao DB '{self.db_path}' estabelecida com sucesso pela Washu!")
+        except sqlite3.Error as e:
+            # Que adorável anomalia!
+            print(f"Anomalia na Matriz Lógica ao conectar: {e}")
+            raise
+
+    def disconnect(self):
+        """Fecha a conexão para evitar Distorções Espaço-Temporais."""
+        if self.conn:
+            self.conn.close()
+            # print("Conexão ao DB fechada. Ordem restaurada.")
+
+    def execute_query(self, query, params=None, fetch_one=False, fetch_all=False, commit=False):
+        if not self.conn:
+            raise ConnectionError("A conexão não foi estabelecida. Chame a Washu!")
+
+        try:
+            if params:
+                self.cursor.execute(query, params)
+            else:
+                self.cursor.execute(query)
+
+            # 1. Tenta capturar o ID da linha recém-inserida
+            last_id = self.cursor.lastrowid if self.cursor.lastrowid is not None else None
+
+            if commit:
+                self.conn.commit()
+                # 2. Se comitou, retorna o ID (que já foi capturado)
+                return last_id if last_id is not None else True
+
+            # 3. Tratamento de SELECT (fetch)
+            if fetch_one or fetch_all:
+                if self.cursor.description:
+                    columns = [desc[0] for desc in self.cursor.description]
+                    data = self.cursor.fetchone() if fetch_one else self.cursor.fetchall()
+                    return columns, data
+                return None, None 
+
+            # 4. CRÍTICO: Se é um INSERT/UPDATE SEM COMMIT, retorna o ID capturado.
+            # Isso corrige o problema do ID: True no VendaService.
+            if last_id is not None:
+                return last_id 
+            
+            return True # Se não é SELECT, não tem commit, e não tem ID, apenas retorna True
+
+        except sqlite3.Error as e:
+            print(f"Distorção Espaço-Temporal SQL detectada: {e}")
+            self.conn.rollback() 
+            return False
+
+    def create_tables(self):
+        """
+        Cria as tabelas iniciais. Definindo a Sintaxe Universal do seu sistema.
+        """
+        
+        # O Protocolo de Limpeza: Garantindo que a estrutura esteja sempre correta
+        # Use APENAS para desenvolvimento inicial!
+        # self.execute_query("DROP TABLE IF EXISTS agendamentos;", commit=True)
+        # self.execute_query("DROP TABLE IF EXISTS vendas;", commit=True)
+        # self.execute_query("DROP TABLE IF EXISTS pessoas;", commit=True)
+        # self.execute_query("DROP TABLE IF EXISTS usuarios;", commit=True)
+
+
+        # 1. Tabela de USUARIOS (Facilitadores, Administradores, etc.)
+        usuarios_table_query = """
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            email TEXT UNIQUE,
+            funcao TEXT,       -- Ex: 'Facilitador', 'Administrador', 'Voluntário'
+            status TEXT DEFAULT 'Ativo'
+        );
+        """
+
+        # 2. Tabela de PESSOAS (Consulentes, Assistidos, Clientes da Feirinha)
+        pessoas_table_query = """
+        CREATE TABLE IF NOT EXISTS pessoas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            telefone TEXT,
+            data_cadastro TEXT NOT NULL DEFAULT (date('now'))
+        );
+        """
+        
+        # 3. Tabela de EVENTOS (Eventos Gerais)
+        eventos_tabel_query = """
+        CREATE TABLE IF NOT EXISTS eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            data_evento TEXT NOT NULL,
+            tipo TEXT,
+            status TEXT DEFAULT 'Aberto'
+        );
+        """
+        
+        # 4. Tabela de AGENDAMENTOS (Com Relacionamentos Dimensionais)
+        agendamentos_table_query = """
+        CREATE TABLE IF NOT EXISTS agendamentos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_pessoa INTEGER NOT NULL,
+            id_facilitador INTEGER,
+            data_hora TEXT NOT NULL,
+            tipo_servico TEXT,
+            status TEXT DEFAULT 'Agendado',
+            id_evento INTEGER NOT NULL,
+            -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
+            FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
+            FOREIGN KEY (id_facilitador) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """
+        
+        # 5. Tabela de Itens
+        itens_table_query = """
+        CREATE TABLE IF NOT EXISTS itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL UNIQUE,
+            valor_compra REAL NOT NULL,
+            valor_venda REAL NOT NULL,
+            status TEXT DEFAULT 'Ativo'  -- <--- CAMPO ADICIONADO!
+        );
+        """
+        
+        # 6. Tabela de Estoque (Para Controlar Entradas e Saídas)
+        
+        estoque_table_query = """
+        CREATE TABLE IF NOT EXISTS estoque (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_item INTEGER NOT NULL,
+            quantidade INTEGER NOT NULL,
+            tipo_movimento TEXT NOT NULL,
+            data_movimento TEXT NOT NULL DEFAULT (date('now')),
+            origem_recurso TEXT DEFAULT 'Doação',
+            id_usuario INTEGER,
+            id_evento  INTEGER,
+            -- Definindo os Relacionamentos Dimensionais (Foreign Keys)
+            FOREIGN KEY (id_item) REFERENCES itens(id),
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """ 
+        
+        # 7. Tabela de VENDAS (A Transação - O cabeçalho)
+        vendas_table_query = """
+        CREATE TABLE IF NOT EXISTS vendas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_pessoa INTEGER,                      -- Quem comprou
+            data_venda TEXT NOT NULL DEFAULT (date('now')),
+            id_evento INTEGER NOT NULL,             -- Qual evento?
+            responsavel TEXT,                       -- Quem registrou (pode ser o nome de um Usuario)
+            FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """
+        
+        # 8. Tabela de LIGAÇÃO (ITENS_VENDA - O detalhe da venda)
+        itens_venda_table_query = """
+        CREATE TABLE IF NOT EXISTS itens_venda (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id_venda INTEGER NOT NULL,
+            id_item INTEGER NOT NULL,
+            quantidade INTEGER NOT NULL,
+            valor_unitario REAL NOT NULL,
+            FOREIGN KEY (id_venda) REFERENCES vendas(id),
+            FOREIGN KEY (id_item) REFERENCES itens(id)
+        );
+        """
+        
+        # 9. Criação da Tabela de Fluxo de Caixa
+        fluxo_caixa_table_query = """
+        CREATE TABLE IF NOT EXISTS movimentos_financeiros (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            data_registro TEXT NOT NULL,
+            id_usuario INTEGER NOT NULL,
+            tipo_movimento TEXT NOT NULL CHECK(tipo_movimento IN ('Receita', 'Despesa')),
+            valor REAL NOT NULL,
+            descricao TEXT,
+            categoria TEXT,
+            id_evento INTEGER,
+            status TEXT NOT NULL DEFAULT 'Ativo',
+            
+            FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
+        );
+        """
+
+
+        # Execução das consultas para estabelecer a ordem
+        self.execute_query(usuarios_table_query, commit=True)
+        self.execute_query(pessoas_table_query, commit=True)
+        self.execute_query(eventos_tabel_query, commit=True)
+        self.execute_query(agendamentos_table_query, commit=True)
+        self.execute_query(itens_table_query, commit=True)
+        self.execute_query(estoque_table_query, commit=True)
+        self.execute_query(vendas_table_query, commit=True)
+        self.execute_query(itens_venda_table_query, commit=True)
+        self.execute_query(fluxo_caixa_table_query, commit=True)
+        
+        # print("Estruturas de Dados Primárias criadas. A Washu estruturou seu universo!")
+        
+        

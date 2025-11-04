@@ -13,7 +13,7 @@ class EventoService:
 
     def registrar_evento(self, evento: Evento) -> Optional[int]:
         """Insere um novo evento na base de dados e retorna o ID."""
-        query = "INSERT INTO eventos (nome, data_evento, tipo, status) VALUES (?, ?, ?, ?)"
+        query = "INSERT INTO eventos (nome, data_evento, tipo, status) VALUES (?, ?, ?, ?) RETURNING id"
         params = (evento.nome, evento.data_evento, evento.tipo, evento.status)
         
         # Retorna o lastrowid do novo Evento

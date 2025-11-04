@@ -14,7 +14,7 @@ class PessoaService:
         # Garante que data_cadastro seja preenchido se o modelo for usado fora do dataclass padrão
         data_cadastro = pessoa.data_cadastro or datetime.now().strftime("%Y-%m-%d")
         
-        query = "INSERT INTO pessoas (nome, telefone, data_cadastro) VALUES (?, ?, ?)"
+        query = "INSERT INTO pessoas (nome, telefone, data_cadastro) VALUES (?, ?, ?) RETURNING id"
         params = (pessoa.nome, pessoa.telefone, data_cadastro)
         return self.db.execute_query(query, params, commit=True) 
     

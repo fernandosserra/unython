@@ -17,7 +17,7 @@ class ItemService:
             return item_existente.id
         
         # Se não existir, insere um novo
-        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status) VALUES (?, ?, ?, ?)"
+        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status) VALUES (?, ?, ?, ?) RETURNING id"
         values = (item.nome, item.valor_compra, item.valor_venda, item.status)
         return self.db.execute_query(query, values, commit=True)
     

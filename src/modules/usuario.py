@@ -18,7 +18,7 @@ class UsuarioService:
             return usuario_existente.id
 
         # 2. Se não existir, insere e retorna o novo ID
-        query = "INSERT INTO usuarios (nome, email, funcao, status) VALUES (?, ?, ?, ?)"
+        query = "INSERT INTO usuarios (nome, email, funcao, status) VALUES (?, ?, ?, ?) RETURNING id"
         params = (usuario.nome, usuario.email, usuario.funcao, usuario.status)
         
         # Agora execute_query vai retornar o lastrowid!

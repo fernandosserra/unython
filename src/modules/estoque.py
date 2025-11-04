@@ -35,7 +35,7 @@ class EstoqueService:
         query = """
         INSERT INTO estoque 
         (id_item, quantidade, tipo_movimento, origem_recurso, id_usuario, id_evento, data_movimento) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
         """
         params = (
             movimento.id_item, 

@@ -6,10 +6,10 @@
 .venv/
 /env/
 
-# 2. ARTEFATOS DE SEGURANÇA (OS SEGREDOS DO GOOGLE)
-# NUNCA envie credenciais de acesso ou tokens de usuário!
-app/credentials.json   # Seu arquivo de configuração secreto do Google Cloud
-app/token.json         # Seu token de acesso gerado após o primeiro login
+# 2. ARTEFATOS DE SEGURANÇA
+config/credentials.json
+config/token.json
+config/secrets.toml
 
 # 3. ARTEFATOS DE DADOS E CACHE
 # O banco de dados e os caches gerados pelo Python e pelo VS Code

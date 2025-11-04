@@ -71,3 +71,16 @@ class ItemVenda:
     quantidade: int
     valor_unitario: float # O preço do momento da venda
     id: Optional[int] = None
+    
+@dataclass
+class MovimentoFinanceiro:
+    """Representa uma entrada ou saída financeira no fluxo de caixa."""
+    id: Optional[int] = None
+    data_registro: str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    id_usuario: int = 0
+    tipo_movimento: str = 'Receita'  # 'Receita' ou 'Despesa'
+    valor: float = 0.0
+    descricao: str = ""
+    categoria: str = "Geral" # Ex: 'Aluguel', 'Doação', 'Salário'
+    id_evento: Optional[int] = None # Para vincular a um evento específico
+    status: str = 'Ativo' # 'Ativo' ou 'Cancelado'
