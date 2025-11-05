@@ -37,7 +37,7 @@ class FluxoDeCaixaService:
         query = """
         INSERT INTO movimentos_financeiros (
             data_registro, id_usuario, tipo_movimento, valor, descricao, categoria, id_evento
-        ) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+        ) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
         
         values = (

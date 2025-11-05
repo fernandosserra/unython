@@ -17,14 +17,22 @@ class ItemService:
             return item_existente.id
         
         # Se não existir, insere um novo
-        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status) VALUES (?, ?, ?, ?) RETURNING id"
+        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status) VALUES (%s, %s, %s, %s) RETURNING id"
         values = (item.nome, item.valor_compra, item.valor_venda, item.status)
         return self.db.execute_query(query, values, commit=True)
     
     def buscar_item_por_nome(self, nome: str) -> Optional[Item]:
         """Busca um item pelo nome e retorna o objeto Item."""
-        query = "SELECT id, nome, valor_compra, valor_venda, status FROM itens WHERE nome = ?"
+        query = "SELECT id, nome, valor_compra, valor_venda, status FROM itens WHERE nome = %s"
         columns, data = self.db.execute_query(query, (nome,), fetch_one=True)
+        if data:
+            return Item(**dict(zip(columns, data)))
+        return None
+    
+    def buscar_item_por_id(self, item_id: int) -> Optional[Item]:
+        """Busca um item pelo ID e retorna o objeto Item."""
+        query = "SELECT id, nome, valor_compra, valor_venda, status FROM itens WHERE id = %s"
+        columns, data = self.db.execute_query(query, (item_id,), fetch_one=True)
         if data:
             return Item(**dict(zip(columns, data)))
         return None
@@ -38,7 +46,7 @@ class ItemService:
         return []
     
     def editar_item(self, item_id: int, nome: str, valor_compra: float, valor_venda: float):
-        query = "UPDATE itens SET nome = ?, valor_compra = ?, valor_venda = ? WHERE id = ?"
+        query = "UPDATE itens SET nome = %s, valor_compra = %s, valor_venda = %s WHERE id = %s"
         values = (nome, valor_compra, valor_venda, item_id)
         self.db.execute_query(query, values)
         return True
@@ -49,8 +57,8 @@ class ItemService:
         Isto é o Protocolo de Segurança Quântica da Washu.
         """
         # 1. Consulta de Bloqueio (Checar o Caos): 
-        # Existe alguma entrada em ItemVenda com este ID?
-        check_query = "SELECT COUNT(id) FROM itens_venda WHERE id_item = ?"
+        # Existe alguma entrada em ItemVenda com este ID%s
+        check_query = "SELECT COUNT(id) FROM itens_venda WHERE id_item = %s"
         _, (count,) = self.db.execute_query(check_query, (item_id,), fetch_one=True)
         
         if count > 0:
@@ -59,11 +67,11 @@ class ItemService:
             return False
             
         # 2. Execução Segura (Se não houver vínculo, está livre para ir):
-        query = "DELETE FROM itens WHERE id = ?"
+        query = "DELETE FROM itens WHERE id = %s"
         self.db.execute_query(query, (item_id,), commit=True)
         return True
     
     def inativar_item(self, item_id: int) -> bool:
         """Inativa um item, mantendo a história da venda intacta."""
-        query = "UPDATE itens SET status = 'Inativo' WHERE id = ?"
+        query = "UPDATE itens SET status = 'Inativo' WHERE id = %s"
         return self.db.execute_query(query, (item_id,), commit=True)

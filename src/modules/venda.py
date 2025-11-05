@@ -20,7 +20,7 @@ class VendaService:
         Retorna o ID (int) se o INSERT for bem-sucedido, senão retorna False.
         """
         # Query atualizada para incluir a chave estrangeira id_evento
-        query = "INSERT INTO vendas (id_pessoa, data_venda, responsavel, id_evento) VALUES (?, ?, ?, ?) RETURNING id"
+        query = "INSERT INTO vendas (id_pessoa, data_venda, responsavel, id_evento) VALUES (%s, %s, %s, %s) RETURNING id"
         
         # Valores alinhados com a query e o Model
         values = (venda.id_pessoa, venda.data_venda, venda.responsavel, venda.id_evento)
@@ -40,7 +40,7 @@ class VendaService:
         """
         Registra o detalhe (item) de uma venda. Não comita.
         """
-        query = "INSERT INTO itens_venda (id_venda, id_item, quantidade, valor_unitario) VALUES (?, ?, ?, ?) RETURNING id"
+        query = "INSERT INTO itens_venda (id_venda, id_item, quantidade, valor_unitario) VALUES (%s, %s, %s, %s) RETURNING id"
         values = (item_venda.id_venda, item_venda.id_item, item_venda.quantidade, item_venda.valor_unitario)
         
         # CRÍTICO: commit=False

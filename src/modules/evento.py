@@ -13,7 +13,7 @@ class EventoService:
 
     def registrar_evento(self, evento: Evento) -> Optional[int]:
         """Insere um novo evento na base de dados e retorna o ID."""
-        query = "INSERT INTO eventos (nome, data_evento, tipo, status) VALUES (?, ?, ?, ?) RETURNING id"
+        query = "INSERT INTO eventos (nome, data_evento, tipo, status) VALUES (%s, %s, %s, %s) RETURNING id"
         params = (evento.nome, evento.data_evento, evento.tipo, evento.status)
         
         # Retorna o lastrowid do novo Evento
@@ -34,7 +34,7 @@ class EventoService:
 
     def fechar_evento(self, id_evento: int) -> bool:
         """Fecha um evento, finalizando o ciclo fiscal."""
-        query = "UPDATE eventos SET status = 'Fechado' WHERE id = ?"
+        query = "UPDATE eventos SET status = 'Fechado' WHERE id = %s"
         return self.db.execute_query(query, (id_evento,), commit=True)
 
     # Nota: Poderíamos adicionar buscar_eventos, mas estes três são cruciais para o fluxo.

@@ -14,7 +14,7 @@ class PessoaService:
         # Garante que data_cadastro seja preenchido se o modelo for usado fora do dataclass padrão
         data_cadastro = pessoa.data_cadastro or datetime.now().strftime("%Y-%m-%d")
         
-        query = "INSERT INTO pessoas (nome, telefone, data_cadastro) VALUES (?, ?, ?) RETURNING id"
+        query = "INSERT INTO pessoas (nome, telefone, data_cadastro) VALUES (%s, %s, %s) RETURNING id"
         params = (pessoa.nome, pessoa.telefone, data_cadastro)
         return self.db.execute_query(query, params, commit=True) 
     
@@ -25,7 +25,7 @@ class PessoaService:
         
         if nome:
             # Adicionando um toque de inteligência: busca parcial com LIKE
-            query += " WHERE nome LIKE ?" 
+            query += " WHERE nome LIKE %s" 
             params = (f'%{nome}%',)
 
         columns, results = self.db.execute_query(query, params, fetch_all=True)
@@ -37,12 +37,12 @@ class PessoaService:
 
     def editar_pessoa(self, pessoa_id: int, nome: str, telefone: Optional[str]):
         # ...
-        query = "UPDATE pessoas SET nome = ?, telefone = ? WHERE id = ?"
+        query = "UPDATE pessoas SET nome = %s, telefone = %s WHERE id = %s"
         params = (nome, telefone, pessoa_id)
         return self.db.execute_query(query, params, commit=True)
 
     def deletar_pessoa(self, pessoa_id: int):
         # ...
-        query = "DELETE FROM pessoas WHERE id = ?"
+        query = "DELETE FROM pessoas WHERE id = %s"
         params = (pessoa_id,)
         return self.db.execute_query(query, params, commit=True)

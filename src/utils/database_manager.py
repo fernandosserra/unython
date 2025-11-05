@@ -70,15 +70,7 @@ class DatabaseManager:
     def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None, fetch_one: bool = False, fetch_all: bool = False, commit: bool = False) -> Any:
         
         # OBTÉM O TIPO DE DB PARA DECISÃO
-        db_type = DB_CONFIG.get('type', 'sqlite')
-        
-        # CRÍTICO: O ADAPTADOR MÁGICO PARA PSICOPG2
-        # Se for Postgres, substitui a sintaxe de placeholder (se o Service usou '?')
-        if db_type == 'postgres':
-             query = query.replace('?', '%s') # Substitui o ? por %s (o que o Psycopg2 espera)
-        elif db_type != 'sqlite':
-            # Se não for postgres nem sqlite (o tipo esperado), levanta erro.
-            raise ValueError(f"Tipo de banco de dados desconhecido: {db_type}")        
+        db_type = DB_CONFIG.get('type', 'postgres')  
         
         if not self.conn:
             raise ConnectionError("A conexão com o PostgreSQL não foi estabelecida. Chame a Washu!")
@@ -90,14 +82,6 @@ class DatabaseManager:
             
             # 2. Execução da Query
             if params:
-                # Psycopg2 (Postgres) usa %s como placeholder, não '?'. 
-                # Seus services foram feitos com '?', então fazemos a substituição mágica:
-                # No entanto, como o psycopg2 lida com a substituição, se for um INSERT,
-                # é mais seguro usar %s. Vamos assumir que os services foram ajustados ou 
-                # que a query de INSERT será adaptada para incluir RETURNING id.
-                
-                # Por agora, executaremos a query e os parâmetros diretamente, 
-                # confiando no Psycopg2 para lidar com a substituição (que é mais forte).
                 self.cursor.execute(query, params)
             else:
                 self.cursor.execute(query)

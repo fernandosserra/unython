@@ -14,7 +14,7 @@ class AgendamentoService:
         query = """
             INSERT INTO agendamentos 
             (id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento) 
-            VALUES (?, ?, ?, ?, ?, ?) RETURNING id
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
         """
         params = (
             agendamento.id_pessoa,

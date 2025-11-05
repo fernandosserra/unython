@@ -24,7 +24,7 @@ class EstoqueService:
     
     def buscar_movimentos_por_item(self, id_item: int) -> List[MovimentoEstoque]:
         """Busca movimentos de estoque por ID de item."""
-        query = "SELECT * FROM estoque WHERE id_item = ?"
+        query = "SELECT * FROM estoque WHERE id_item = %s"
         columns, results = self.db.execute_query(query, (id_item,), fetch_all=True)
         return self._transmutar_movimento(columns, results)
 
@@ -35,7 +35,7 @@ class EstoqueService:
         query = """
         INSERT INTO estoque 
         (id_item, quantidade, tipo_movimento, origem_recurso, id_usuario, id_evento, data_movimento) 
-        VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id
+        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
         params = (
             movimento.id_item, 
@@ -84,7 +84,7 @@ class EstoqueService:
         FROM 
             estoque
         WHERE 
-            id_item = ?;
+            id_item = %s;
         """
         
         try:

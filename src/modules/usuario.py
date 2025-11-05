@@ -18,7 +18,7 @@ class UsuarioService:
             return usuario_existente.id
 
         # 2. Se não existir, insere e retorna o novo ID
-        query = "INSERT INTO usuarios (nome, email, funcao, status) VALUES (?, ?, ?, ?) RETURNING id"
+        query = "INSERT INTO usuarios (nome, email, funcao, status) VALUES (%s, %s, %s, %s) RETURNING id"
         params = (usuario.nome, usuario.email, usuario.funcao, usuario.status)
         
         # Agora execute_query vai retornar o lastrowid!
@@ -36,7 +36,7 @@ class UsuarioService:
     
     def buscar_usuario_por_email(self, email: str) -> Optional[Usuario]:
         """Busca um usuário pelo email."""
-        query = "SELECT id, nome, email, funcao, status FROM usuarios WHERE email = ?"
+        query = "SELECT id, nome, email, funcao, status FROM usuarios WHERE email = %s"
         columns, result = self.db.execute_query(query, (email,), fetch_one=True)
         if result:
             return Usuario(**dict(zip(columns, result)))
@@ -44,12 +44,12 @@ class UsuarioService:
 
     def editar_usuario(self, usuario_id, nome, email, funcao, status):
         # ... (Outros métodos CRUD estão corretos em sua lógica)
-        query = "UPDATE usuarios SET nome = ?, email = ?, funcao = ?, status = ? WHERE id = ?"
+        query = "UPDATE usuarios SET nome = %s, email = %s, funcao = %s, status = %s WHERE id = %s"
         params = (nome, email, funcao, status, usuario_id)
         return self.db.execute_query(query, params, commit=True)
     
     def deletar_usuario(self, usuario_id: int):
         # ...
-        query = "DELETE FROM usuarios WHERE id = ?"
+        query = "DELETE FROM usuarios WHERE id = %s"
         params = (usuario_id,)
         return self.db.execute_query(query, params, commit=True)

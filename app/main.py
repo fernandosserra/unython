@@ -35,12 +35,12 @@ def main():
     DB_TYPE = DB_CONFIG.get('type')
     
     # Definindo o tipo de banco de dados
-    if DB_TYPE == 'sqlite':
-        # Se for SQLite, calculamos o caminho real do arquivo .db
-        BACKUP_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'unython.db') 
-    else:
+    if DB_TYPE == 'postgres':
         # Para o Postgres, o path é apenas um placeholder para nomear o dump
         BACKUP_PATH = "postgres_server_dump"
+    else:
+        # Outros Bancos de Daddos (Ainda não implementado!)
+        print('ERRO! Banco de dados desconhecido!')
     
     db_manager = DatabaseManager()
     id_facilitador_teste = None
