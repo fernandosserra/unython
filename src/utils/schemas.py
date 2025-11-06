@@ -1,6 +1,6 @@
 # src/utils/schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime, date
 
 # --- 1. MODELOS DE ENTRADA (Para POST/PUT) ---
@@ -31,6 +31,12 @@ class VendaCreate(BaseModel):
     
     class Config:
         populate_by_name = True
+        
+class AgendamentoUpdateStatus(BaseModel):
+    """Schema para o recepcionista confirmar a presença (ou não)."""
+    
+    # Limita o campo a aceitar apenas 'Sim' ou 'Não'
+    compareceu: Literal['Sim', 'Não']
 
 # --- 2. MODELOS DE SAÍDA (Para GET - O que a API retorna) ---
 

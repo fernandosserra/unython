@@ -56,3 +56,11 @@ class AgendamentoService:
         if results:
             return [Agendamento(**dict(zip(columns, row))) for row in results]
         return []
+    
+    def confirmar_comparecimento(self, id_agendamento: int, presenca: str) -> bool:
+        """Atualiza o status 'compareceu' de um agendamento específico."""
+        query = "UPDATE agendamentos SET compareceu = %s WHERE id = %s" # Postgres Placeholders
+        params = (presenca, id_agendamento)
+        
+        # Usamos commit=True pois é uma transação simples
+        return self.db.execute_query(query, params, commit=True)

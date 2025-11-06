@@ -174,6 +174,7 @@ class DatabaseManager:
             tipo_servico VARCHAR(100),
             status VARCHAR(50) DEFAULT 'Agendado',
             id_evento INTEGER NOT NULL,
+            compareceu VARCHAR(50) DEFAULT 'Pendente',
             
             FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
             FOREIGN KEY (id_facilitador) REFERENCES usuarios(id),

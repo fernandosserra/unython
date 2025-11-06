@@ -49,12 +49,16 @@ class Evento:
 class Agendamento:
     id_pessoa: int
     tipo_servico: str
-    id_evento: int                  # <--- CHAVE ESTRANGEIRA ADICIONADA!
+    id_evento: int 
     id_facilitador: Optional[int] = None
     data_hora: datetime = datetime.now()
-    status: str = 'Agendado'
+    status: str = 'Agendado'        
+    # NOVO CAMPO CRÍTICO: Rastreamento de Presença
+    # Opções: 'Pendente' (default), 'Sim', 'Não'
+    compareceu: str = 'Pendente' 
+    
     id: Optional[int] = None
-
+    
 @dataclass
 class Venda:
     id_pessoa: Optional[int]

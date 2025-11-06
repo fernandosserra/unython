@@ -13,7 +13,7 @@ from src.utils.database_manager import DatabaseManager
 from src.utils.dependencies import DBDependency
 
 # Importa os routers
-from app.routers import estoque, vendas
+from app.routers import estoque, vendas, relatorios, agendamentos
 
 # Cria a instância da API
 app = FastAPI(
@@ -43,6 +43,8 @@ def get_db_status(db: DBDependency):
 
 app.include_router(estoque.router)
 app.include_router(vendas.router)
+app.include_router(relatorios.router)
+app.include_router(agendamentos.router)
 
 # ----------------------------------------------------
 
