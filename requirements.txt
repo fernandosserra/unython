@@ -1,0 +1,14 @@
+fastapi
+uvicorn[standard]  # Uvicorn com dependências extras de performance
+pydantic
+psycopg2-binary
+toml 
+python-dotenv  # Útil para carregar variáveis de ambiente (PG_HOST, etc.)
+# Dependências do Google Drive:
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
+# Dependência de precisão numérica:
+python-multipart
+SQLAlchemy  # Adicionado como prevenção se você usar SQLAlchemy ORM no futuro (boas práticas)
+alembic     # Adicionado para migrações de banco de dados (boas práticas)

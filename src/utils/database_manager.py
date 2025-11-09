@@ -138,8 +138,10 @@ class DatabaseManager:
             id SERIAL PRIMARY KEY,
             nome VARCHAR(255) NOT NULL,
             email VARCHAR(255) UNIQUE,
-            funcao VARCHAR(100),       
-            status VARCHAR(50) DEFAULT 'Ativo'
+            funcao VARCHAR(100),
+            role VARCHAR(50) DEFAULT 'Vendedor',      
+            status VARCHAR(50) DEFAULT 'Ativo',
+            hashed_password VARCHAR(128)
         );
         """
 

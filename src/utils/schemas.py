@@ -73,3 +73,18 @@ class InventarioResponse(BaseModel):
     
     class Config:
         from_attributes = True
+        
+# --- 4. AUTENTICAÇÃO DA API ---
+
+class LoginRequest(BaseModel):
+    """Modelo para receber as credenciais do usuário."""
+    email: str
+    password: str # Senha em texto puro
+    
+    class Config:
+        from_attributes = True
+
+class Token(BaseModel):
+    """Modelo de resposta para o Token de acesso."""
+    access_token: str
+    token_type: str

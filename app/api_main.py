@@ -13,7 +13,7 @@ from src.utils.database_manager import DatabaseManager
 from src.utils.dependencies import DBDependency
 
 # Importa os routers
-from app.routers import estoque, vendas, relatorios, agendamentos
+from app.routers import estoque, vendas, relatorios, agendamentos, auth
 
 # Cria a instância da API
 app = FastAPI(
@@ -45,6 +45,7 @@ app.include_router(estoque.router)
 app.include_router(vendas.router)
 app.include_router(relatorios.router)
 app.include_router(agendamentos.router)
+app.include_router(auth.router)
 
 # ----------------------------------------------------
 
@@ -52,5 +53,3 @@ app.include_router(agendamentos.router)
 if __name__ == "__main__":
     # Comando para rodar o servidor Uvicorn localmente
     uvicorn.run(app, host="127.0.0.1", port=8000)
-    
-    

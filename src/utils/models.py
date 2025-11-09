@@ -15,6 +15,8 @@ class Usuario:
     nome: str
     email: str
     funcao: str
+    hashed_password: Optional[str] = None
+    role: str = 'Vendedor'
     status: str = 'Ativo'
     id: Optional[int] = None
     

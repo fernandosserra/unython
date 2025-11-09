@@ -23,6 +23,7 @@ from src.modules.estoque import EstoqueService
 from src.modules.relatorio import RelatorioService
 from src.modules.fluxo_caixa import FluxoDeCaixaService
 from src.modules.backup import fazer_backup_google_drive
+from src.utils.security import verify_password
 
 # Função Principal
 def main():
@@ -44,6 +45,7 @@ def main():
     
     db_manager = DatabaseManager()
     id_facilitador_teste = None
+    id_facilitador_update_teste = None
     id_pessoa_teste = None
     id_evento_teste = None
     
@@ -87,9 +89,35 @@ def main():
         novo_facilitador = Usuario(
             nome="Dra. Washu Hakubi", 
             email="washu@unython.com", 
-            funcao=get_alias("FUNCAO_FACILITADOR")
+            funcao=get_alias("FUNCAO_FACILITADOR"),
+            role="Administrador", # Definindo o role para este usuário mestre
+            status="Ativo"
         )
-        id_facilitador_teste = usuario_service.registrar_usuario(novo_facilitador)
+        
+        SENHA_MASTER = "minhasenhaadmin123"
+        
+        # O Service registra (ou ATUALIZA a senha/role se já existir) e retorna o ID
+        id_facilitador_teste = usuario_service.registrar_usuario(novo_facilitador, SENHA_MASTER)
+        
+        # --- TESTE DE SEGURANÇA (VERIFICANDO SE A SENHA FOI SALVA E ESTÁ CORRETA) ---
+        
+        # 1. BUSCAR USUÁRIO NO BANCO (para obter o hash salvo)
+        usuario_db = usuario_service.buscar_usuario_por_email(novo_facilitador.email)
+        
+        # 2. TESTAR O LOGIN
+        login_sucesso = False
+        if usuario_db:
+            # Tentar verificar a SENHA MESTRE (com o hash que o service salvou)
+            login_sucesso = verify_password(SENHA_MASTER, usuario_db.hashed_password)
+        
+        # Impressão de resultados
+        print(f"\n -> {ALIAS_FACILITADOR} registrado/atualizado com ID: {id_facilitador_teste}")
+        print(f" -> Teste de Login com SENHA MASTER: {'SUCESSO' if login_sucesso else 'FALHA'}")
+        print(f" -> Role atribuído: {usuario_db.role if usuario_db else 'N/A'}")
+        
+        # CRÍTICO: Se o login falhar, elevamos um erro para parar a execução
+        if not login_sucesso:
+             raise Exception("ERRO FATAL DE SEGURANÇA: O hash da senha não foi salvo/verificado corretamente.")     
         
         # B. REGISTRAR PESSOA/CONSULENTE
         nova_pessoa = Pessoa(
@@ -99,6 +127,7 @@ def main():
         id_pessoa_teste = pessoa_service.registrar_pessoa(nova_pessoa)
         
         print(f" -> {ALIAS_FACILITADOR} registrado com ID: {id_facilitador_teste}")
+        print(f" -> {ALIAS_FACILITADOR} atualizado com ID: {id_facilitador_update_teste}")
         print(f" -> {ALIAS_PESSOA} registrado com ID: {id_pessoa_teste}")
         
         # C. REGISTRAR AGENDAMENTO (Corrigido o id_evento e tipo_servico)

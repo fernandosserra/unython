@@ -10,10 +10,13 @@ from decimal import Decimal # Necessário para o cálculo de soma do Inventário
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Importa Services e Infraestrutura
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_role
 from src.modules.relatorio import RelatorioService
 from src.modules.estoque import EstoqueService
+from src.utils.models import Usuario
 from src.utils.schemas import InventarioResponse # Reutilizaremos este Schema para o Inventário
+
+ADMIN_ONLY = require_role({'Administrador'})
 
 # Cria o Router para as rotas de relatórios
 router = APIRouter(
@@ -52,3 +55,27 @@ def get_despesas_por_categoria(db: DBDependency):
          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma despesa ativa encontrada.")
          
     return despesas
+
+
+# ------------------------------------------------------------------
+# 3. ENDPOINT: RELATÓRIO GERENCIAL
+# ------------------------------------------------------------------
+
+@router.get("/relatorio-gerencial")
+def get_relatorio_gerencial(
+    db: DBDependency,
+    # A MÁGICA DO RBAC: Adicionamos a dependência aqui!
+    # O FastAPI executa esta função ANTES de entrar na rota.
+    # Se o current_user.role não for 'Administrador', ele lança HTTPException 403.
+    current_user: Annotated[Usuario, Depends(ADMIN_ONLY)] 
+):
+    """
+    Gera um relatório gerencial. Apenas usuários com a role 'Administrador' têm acesso.
+    """
+    # Se o código chegou aqui, o usuário está autenticado E autorizado.
+    
+    # Exemplo de uso do usuário (opcional)
+    print(f"Relatório acessado por: {current_user.nome} ({current_user.role})")
+    
+    # ... Lógica de geração do relatório
+    return {"status": "ok", "dados": "Relatório Confidencial Gerencial"}
