@@ -12,10 +12,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 # Importa TODAS as dependências do Core (Models e Services)
 from src.utils.database_manager import DatabaseManager, DB_CONFIG
 from src.utils.config import get_alias
-from src.utils.models import Pessoa, Usuario, Evento, Agendamento, Item, Venda, ItemVenda, MovimentoEstoque, MovimentoFinanceiro
+from src.utils.models import Categoria, Pessoa, Usuario, Evento, Agendamento, Item, Venda, ItemVenda, MovimentoEstoque, MovimentoFinanceiro
 from src.modules.pessoa import PessoaService
 from src.modules.usuario import UsuarioService
 from src.modules.evento import EventoService
+from src.modules.categoria import CategoriaService
 from src.modules.agendamento import AgendamentoService
 from src.modules.venda import VendaService
 from src.modules.item import ItemService
@@ -166,12 +167,42 @@ def main():
         
         print()
             
-        # D. REGISTRAR ITENS (Catálogo)
-        novo_item_coca = Item(nome='Coca Cola Lata', valor_compra=1.50, valor_venda=2.50)
+        # D. REGISTRAR ITENS E CATEGORIAS (Catálogo)
+
+        # 1. Inicializar o Serviço de Categorias
+        categoria_service = CategoriaService(db_manager) 
+        
+        # 2. CRIAR CATEGORIAS (Novos Artefatos)
+        
+        # Criamos o primeiro objeto (Bebidas)
+        nova_categoria_bebidas = Categoria(nome="Bebidas", descricao="Refrigerantes, Água, Sucos")
+        id_cat_bebidas = categoria_service.registrar_categoria(nova_categoria_bebidas)
+        print(f" -> Categoria '{nova_categoria_bebidas.nome}' registrada com ID: {id_cat_bebidas}")
+        
+        # Criamos o segundo objeto (Esotéricos)
+        nova_categoria_esotericos = Categoria(nome="Esotéricos", descricao="Velas, Incensos, Banhos")
+        id_cat_esotericos = categoria_service.registrar_categoria(nova_categoria_esotericos)
+        print(f" -> Categoria '{nova_categoria_esotericos.nome}' registrada com ID: {id_cat_esotericos}")
+
+        # 3. REGISTRAR ITENS (Usando a Chave Estrangeira da Categoria)
+        
+        # Coca-Cola (Ligada a Bebidas)
+        novo_item_coca = Item(
+            nome='Coca Cola Lata', 
+            valor_compra=1.50, 
+            valor_venda=2.50,
+            id_categoria=id_cat_bebidas # <--- NOVO PARÂMETRO CHAVE
+        )
         id_item_coca = item_service.registrar_item(novo_item_coca)
         print(f" -> Item '{novo_item_coca.nome}' registrado com ID: {id_item_coca}")
         
-        novo_item_vela = Item(nome='Vela 7 Dias', valor_compra=5.00, valor_venda=10.00)
+        # Vela (Ligada a Esotéricos)
+        novo_item_vela = Item(
+            nome='Vela 7 Dias', 
+            valor_compra=5.00, 
+            valor_venda=10.00,
+            id_categoria=id_cat_esotericos # <--- NOVO PARÂMETRO CHAVE
+        )
         id_item_vela = item_service.registrar_item(novo_item_vela) 
         print(f" -> Item '{novo_item_vela.nome}' registrado com ID: {id_item_vela}")
         
@@ -197,7 +228,6 @@ def main():
             id_evento=id_evento_teste
         )
         print(f" -> Entrada de 10x Velas registrada (Mov. ID: {id_mov_vela})")
-
 
         # E. REGISTRAR VENDA COM SUCESSO (Venda Atômica)
         print("\n--- Teste 1: Venda Atômica COM Estoque ---")

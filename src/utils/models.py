@@ -24,7 +24,16 @@ class Usuario:
 class Item:
     nome: str
     valor_compra: float
-    valor_venda: float
+    valor_venda: float    
+    id_categoria: Optional[int] = None # <-- Deve ser Optional ou ter um default    
+    status: str = 'Ativo' 
+    id: Optional[int] = None
+    
+@dataclass
+class Categoria:
+    """Define as categorias de produtos (Bebidas, Esotéricos, etc.)."""
+    nome: str
+    descricao: Optional[str] = None
     status: str = 'Ativo'
     id: Optional[int] = None
     

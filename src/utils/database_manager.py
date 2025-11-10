@@ -184,18 +184,32 @@ class DatabaseManager:
         );
         """
         
-        # 5. Tabela de ITENS (Catálogo)
+        # 5. Tabela de CATEGORIAS (Nova Tabela)
+        categorias_table_query = """
+        CREATE TABLE IF NOT EXISTS categorias (
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(100) NOT NULL UNIQUE,
+            descricao TEXT,
+            status VARCHAR(50) DEFAULT 'Ativo'
+        );
+        """
+        self.execute_query(categorias_table_query, commit=True)
+        
+        # 6. Tabela de ITENS (Catálogo)
         itens_table_query = """
         CREATE TABLE IF NOT EXISTS itens (
             id SERIAL PRIMARY KEY,
             nome VARCHAR(255) NOT NULL UNIQUE,
             valor_compra NUMERIC(10, 2) NOT NULL,
             valor_venda NUMERIC(10, 2) NOT NULL,
-            status VARCHAR(50) DEFAULT 'Ativo'
+            status VARCHAR(50) DEFAULT 'Ativo',
+            id_categoria INTEGER,
+            
+            FOREIGN KEY (id_categoria) REFERENCES categorias(id)
         );
         """
         
-        # 6. Tabela de MOVIMENTO ESTOQUE (Rastreamento)
+        # 7. Tabela de MOVIMENTO ESTOQUE (Rastreamento)
         estoque_table_query = """
         CREATE TABLE IF NOT EXISTS estoque (
             id SERIAL PRIMARY KEY,
@@ -213,7 +227,7 @@ class DatabaseManager:
         );
         """ 
         
-        # 7. Tabela de VENDAS (Cabeçalho)
+        # 8. Tabela de VENDAS (Cabeçalho)
         vendas_table_query = """
         CREATE TABLE IF NOT EXISTS vendas (
             id SERIAL PRIMARY KEY,
@@ -227,7 +241,7 @@ class DatabaseManager:
         );
         """
         
-        # 8. Tabela de LIGAÇÃO (ITENS_VENDA)
+        # 9. Tabela de LIGAÇÃO (ITENS_VENDA)
         itens_venda_table_query = """
         CREATE TABLE IF NOT EXISTS itens_venda (
             id SERIAL PRIMARY KEY,
@@ -241,7 +255,7 @@ class DatabaseManager:
         );
         """
         
-        # 9. Tabela de MOVIMENTOS FINANCEIROS (Fluxo de Caixa)
+        # 10. Tabela de MOVIMENTOS FINANCEIROS (Fluxo de Caixa)
         movimentos_financeiros_table_query = """
         CREATE TABLE IF NOT EXISTS movimentos_financeiros (
             id SERIAL PRIMARY KEY,
