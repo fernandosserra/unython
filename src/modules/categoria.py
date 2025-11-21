@@ -1,6 +1,6 @@
 # src/modules/categoria.py
 
-from typing import Optional, List
+from typing import Any, Dict, Optional, List
 from src.utils.database_manager import DatabaseManager
 from src.utils.models import Categoria # Importa o dataclass Categoria
 
@@ -86,3 +86,44 @@ class CategoriaService:
         """Inativa uma categoria, mantendo a integridade histórica."""
         query = "UPDATE categorias SET status = 'Inativo' WHERE id = %s"
         return self.db.execute_query(query, (id_categoria,), commit=True)
+    
+    def buscar_itens_por_categoria(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Busca todos os itens ativos, retornando-os agrupados pelo nome da categoria.
+        Útil para a renderização visual do PDV.
+        """
+        # CRÍTICO: JOIN para ligar o item ao nome da categoria
+        query = """
+        SELECT 
+            c.nome AS categoria_nome, 
+            i.id, 
+            i.nome, 
+            i.valor_venda 
+        FROM 
+            categorias c
+        INNER JOIN 
+            itens i ON c.id = i.id_categoria
+        WHERE
+            c.status = 'Ativo' AND i.status = 'Ativo'
+        ORDER BY 
+            c.nome, i.nome;
+        """
+        columns, results = self.db.execute_query(query, fetch_all=True)
+        
+        # Agrupamento manual dos resultados (Pythonic grouping)
+        if not results:
+            return {}
+            
+        grouped_data = {}
+        for row in results:
+            data = dict(zip(columns, row))
+            categoria = data['categoria_nome']
+            
+            # Remove a chave de agrupamento antes de adicionar o item
+            del data['categoria_nome'] 
+            
+            if categoria not in grouped_data:
+                grouped_data[categoria] = []
+            grouped_data[categoria].append(data)
+            
+        return grouped_data

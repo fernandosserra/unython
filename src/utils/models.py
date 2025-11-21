@@ -1,6 +1,7 @@
 # src/utils/models.py
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, date
+from decimal import Decimal
 from typing import Optional, List, Tuple
 
 @dataclass
@@ -99,3 +100,22 @@ class MovimentoFinanceiro:
     categoria: str = "Geral" # Ex: 'Aluguel', 'Doação', 'Salário'
     id_evento: Optional[int] = None # Para vincular a um evento específico
     status: str = 'Ativo' # 'Ativo' ou 'Cancelado'
+    
+@dataclass
+class Caixa:
+    """Representa um ponto de venda físico (Caixa)."""
+    nome: str
+    descricao: Optional[str] = None
+    status: str = 'Ativo'
+    id: Optional[int] = None
+
+@dataclass
+class MovimentoCaixa:
+    """Registra a abertura e fechamento de uma sessão de caixa."""
+    id_caixa: int
+    id_usuario_abertura: int
+    valor_abertura: Decimal = Decimal('0.00')
+    status: str = 'Aberto' # 'Aberto', 'Fechado'
+    data_abertura: datetime = field(default_factory=datetime.now)
+    data_fechamento: Optional[datetime] = None
+    id: Optional[int] = None

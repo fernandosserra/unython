@@ -272,12 +272,49 @@ class DatabaseManager:
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
+        
+        # 11.TABELAS DE FLUXO DE CAIXA E MOVIMENTO
 
+        # 11.1 Tabela de Caixas Físicos (Ex: Caixa Principal)
+        caixas_table_query = """
+        CREATE TABLE IF NOT EXISTS caixas (
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(100) UNIQUE NOT NULL,
+            descricao VARCHAR(255),
+            status VARCHAR(50) DEFAULT 'Ativo'
+        );
+        """
+        
+        # 11.2 Tabela de Movimentos de Caixa (Sessões)
+        movimentos_caixa_table_query = """        
+        CREATE TABLE IF NOT EXISTS movimentos_caixa (
+            id SERIAL PRIMARY KEY,
+            id_caixa INT NOT NULL,
+            id_usuario_abertura INT NOT NULL,
+            valor_abertura NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
+            status VARCHAR(50) NOT NULL DEFAULT 'Aberto',
+            data_abertura TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            data_fechamento TIMESTAMP WITHOUT TIME ZONE,
+            
+            -- Chaves Estrangeiras (Segurança)
+            FOREIGN KEY (id_caixa) REFERENCES caixas(id),
+            FOREIGN KEY (id_usuario_abertura) REFERENCES usuarios(id)
+        );
+        """
+        
+        # 11.3 Índices
+        # CRÍTICO: Índices para agilizar buscas
+        indexes_query = """
+        CREATE INDEX IF NOT EXISTS idx_mov_caixa_caixa_id ON movimentos_caixa (id_caixa);
+        CREATE INDEX IF NOT EXISTS idx_mov_caixa_status ON movimentos_caixa (status); 
+        """
+        
         # Execução das consultas
         queries = [
             usuarios_table_query, pessoas_table_query, eventos_tabel_query, 
             agendamentos_table_query, itens_table_query, estoque_table_query, 
-            vendas_table_query, itens_venda_table_query, movimentos_financeiros_table_query
+            vendas_table_query, itens_venda_table_query, movimentos_financeiros_table_query, 
+            caixas_table_query, movimentos_caixa_table_query, indexes_query
         ]
         
         # Executa query por query com commit imediato (para DDL)
