@@ -101,3 +101,16 @@ class VendaService:
         if results:
             return [Venda(**dict(zip(columns, row))) for row in results]
         return []
+
+    def buscar_ultimas_vendas(self, limite: int = 10) -> List[Venda]:
+        """Busca as últimas vendas (ordem desc)."""
+        query = """
+        SELECT id, id_pessoa, data_venda, responsavel, id_evento, id_movimento_caixa
+        FROM vendas
+        ORDER BY id DESC
+        LIMIT %s
+        """
+        columns, results = self.db.execute_query(query, (limite,), fetch_all=True)
+        if results:
+            return [Venda(**dict(zip(columns, row))) for row in results]
+        return []

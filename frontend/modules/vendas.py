@@ -230,7 +230,7 @@ def vendas_page():
     st.markdown("---")
     st.subheader("Seleção e Carrinho")
     with st.container():
-        tabs = st.tabs(["Produtos", "Carrinho"])
+        tabs = st.tabs(["Produtos", "Carrinho", "Últimas vendas"])
         with tabs[0]:
             render_item_buttons_by_category(grouped_catalog)
             st.markdown("---")
@@ -240,5 +240,19 @@ def vendas_page():
                 render_cart_summary(movimento_id, evento_id=evento_id)
             else:
                 st.info("Abra um movimento para habilitar a venda.")
+        with tabs[2]:
+            if st.button("Listar últimas 10 vendas", use_container_width=True):
+                resp = requests.get(f"{API_BASE_URL}/vendas/ultimas", headers=headers, params={"limite": 10})
+                if resp.status_code == 200:
+                    vendas = resp.json()
+                    if not vendas:
+                        st.info("Nenhuma venda encontrada.")
+                    for v in vendas:
+                        st.markdown(
+                            f"**Venda ID {v.get('id')}** - Evento {v.get('eventoId', v.get('id_evento', '?'))} "
+                            f"- Movimento {v.get('id_movimento_caixa')} - Responsável {v.get('responsavel')}"
+                        )
+                else:
+                    st.error(f"Falha ao carregar vendas: {resp.text}")
 
     st.caption("Dica: em tablets/smartphones, use as abas Produtos/Carrinho para alternar rapidamente.")

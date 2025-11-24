@@ -79,3 +79,10 @@ def listar_vendas(db: DBDependency):
     if not vendas:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma venda registrada.")
     return vendas
+
+
+@router.get("/ultimas", response_model=List[VendaResponse], status_code=status.HTTP_200_OK)
+def listar_ultimas_vendas(db: DBDependency, limite: int = 10):
+    venda_service = VendaService(db)
+    vendas = venda_service.buscar_ultimas_vendas(limite)
+    return vendas
