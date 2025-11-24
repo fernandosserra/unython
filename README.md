@@ -57,6 +57,7 @@ streamlit run frontend/interface.py --server.port 8501 --server.headless true
   ```
 - Fixture `cleanup_db` faz TRUNCATE/RESTART IDENTITY antes/depois de cada teste (usa o Postgres de `secrets.toml`).
 - Discovery configurado em `pytest.ini` (`test_*.py` e `teste_*.py`).
+- Fluxo de autenticação testado em integração: criação de superusuário default com troca obrigatória de senha no primeiro login.
 
 ## Notas de desenvolvimento
 - Setup rápido:
@@ -68,6 +69,7 @@ streamlit run frontend/interface.py --server.port 8501 --server.headless true
 - Imports: o orquestrador ajusta `PYTHONPATH`; evite `sys.path.append` em novos módulos.
 - Valores monetários usam `Decimal` nos models.
 - Prefira `logging` em vez de `print` em produção.
+- Autenticação: superusuário bootstrap `admin@unython.local` com senha inicial `change-me-now`; a API força `require_password_change` e o frontend Streamlit exige redefinição no primeiro acesso (endpoint `/change-password`).
 
 ## Roadmap curto
 - Cancelamento de vendas com permissão.

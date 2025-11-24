@@ -228,3 +228,24 @@ def test_relatorios_financeiros_e_inventario(db_manager, seed_basico, catalogo):
     assert relatorio_srv.gerar_inventario_total() is not None
     assert relatorio_srv.gerar_despesas_por_categoria() is not None
     assert relatorio_srv.calcular_saldo_fluxo_caixa() is not None
+
+
+def test_usuario_require_password_change(db_manager):
+    usuario_srv = UsuarioService(db_manager)
+    usuario = Usuario(
+        nome="Admin Bootstrap",
+        email="admin@unython.local",
+        funcao="Administrador",
+        role="Administrador",
+        status="Ativo",
+        require_password_change=True,
+    )
+    uid = usuario_srv.registrar_usuario(usuario, "old123", require_password_change=True)
+    fetched = usuario_srv.buscar_usuario_por_id(uid)
+    assert fetched and fetched.require_password_change
+
+    ok = usuario_srv.alterar_senha(usuario.email, "old123", "new456")
+    assert ok
+    fetched2 = usuario_srv.buscar_usuario_por_id(uid)
+    assert fetched2 and not fetched2.require_password_change
+    assert usuario_srv.verificar_credenciais(usuario.email, "new456")
