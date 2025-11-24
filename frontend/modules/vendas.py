@@ -181,7 +181,7 @@ def vendas_page():
 
     grouped_catalog = get_grouped_catalog(auth_token)
     if not grouped_catalog:
-        st.warning("Não foi possível carregar o catálogo de itens.")
+        st.warning("Catálogo vazio. Cadastre categorias e itens ativos antes de vender.")
         return
 
     item_data_map = get_item_data_map(grouped_catalog)

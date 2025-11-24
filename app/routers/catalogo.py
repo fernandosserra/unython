@@ -24,7 +24,5 @@ def get_itens_agrupados_por_categoria(db: DBDependency):
     # Chama o novo serviço para obter os dados agrupados
     data = categoria_service.buscar_itens_por_categoria()
     
-    if not data:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma categoria ativa ou itens encontrados.")
-        
-    return data
+    # Se não houver dados, retorna dict vazio (evita 404 no PDV)
+    return data or {}
