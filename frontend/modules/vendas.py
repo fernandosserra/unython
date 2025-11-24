@@ -73,7 +73,10 @@ def post_sale(auth_token: str, user_id: int, movimento_id: int, evento_id: int):
             st.success("Venda registrada com sucesso!")
             clear_cart()
             return True
-        error_detail = response.json().get('detail', f"Falha desconhecida. Código: {response.status_code}")
+        try:
+            error_detail = response.json().get('detail', "")
+        except Exception:
+            error_detail = response.text or f"Falha desconhecida. Código: {response.status_code}"
         st.error(f"Falha ao finalizar venda: {error_detail}")
         return False
     except requests.exceptions.ConnectionError:
@@ -101,18 +104,16 @@ def render_quantity_controls(item_data_map: Dict[int, Dict[str, Any]]):
     if not cart:
         st.info("Carrinho vazio. Selecione um produto para ajustar a quantidade.")
         return
-    last_item_id = list(cart.keys())[-1]
-    cart_item = cart[last_item_id]
-    st.markdown(f"**Ajustando:** **{cart_item['name']}** (Qtde atual: {cart_item['quantity']})")
-    q_cols = st.columns(4)
-    if q_cols[0].button("+1", key="q_plus_1", use_container_width=True):
-        update_cart(last_item_id, cart_item['name'], cart_item['price'], 1)
-    if q_cols[1].button("+5", key="q_plus_5", use_container_width=True):
-        update_cart(last_item_id, cart_item['name'], cart_item['price'], 5)
-    if q_cols[2].button("-1", key="q_minus_1", use_container_width=True):
-        update_cart(last_item_id, cart_item['name'], cart_item['price'], -1)
-    if q_cols[3].button("Zerar", key="q_zero", use_container_width=True):
-        update_cart(last_item_id, cart_item['name'], cart_item['price'], -cart_item['quantity'])
+    for item_id, cart_item in cart.items():
+        st.markdown(f"**{cart_item['name']}** (Qtde: {cart_item['quantity']})")
+        cols = st.columns([2, 2, 2, 1])
+        nova_qtde = cols[0].number_input(f"Qtde_{item_id}", min_value=0, value=cart_item['quantity'], step=1)
+        if cols[1].button("Salvar", key=f"save_{item_id}"):
+            delta = nova_qtde - cart_item['quantity']
+            update_cart(item_id, cart_item['name'], cart_item['price'], delta)
+        if cols[2].button("Remover", key=f"rm_{item_id}"):
+            update_cart(item_id, cart_item['name'], cart_item['price'], -cart_item['quantity'])
+        cols[3].markdown(f"R$ {cart_item['price']:.2f}")
 
 
 def render_cart_summary(movimento_id: int, evento_id: int):
