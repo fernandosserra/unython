@@ -54,14 +54,14 @@ def usuarios_page(api_base_url: str):
                 st.write(f"Função interna: {u.get('funcao')}")
                 st.write(f"Função (cargo): {u.get('role')}")
                 if role == "administrador":
-                    nova_funcao = st.text_input(f"Função interna_{u.get('id')}", value=u.get('funcao') or u.get('role'))
+                    nova_funcao = st.text_input("Função interna", value=u.get('funcao') or u.get('role'), key=f"funcao_{u.get('id')}")
                     novo_cargo = st.selectbox(
-                        f"Função (cargo)_{u.get('id')}", ROLE_OPTIONS, index=ROLE_OPTIONS.index(u.get('role')) if u.get('role') in ROLE_OPTIONS else 0
+                        "Função (cargo)", ROLE_OPTIONS, index=ROLE_OPTIONS.index(u.get('role')) if u.get('role') in ROLE_OPTIONS else 0, key=f"cargo_{u.get('id')}"
                     )
                     novo_status = st.selectbox(
-                        f"Status_{u.get('id')}", ["Ativo", "Inativo"], index=0 if u.get('status') == "Ativo" else 1
+                        "Status", ["Ativo", "Inativo"], index=0 if u.get('status') == "Ativo" else 1, key=f"status_{u.get('id')}"
                     )
-                    if st.button(f"Salvar alterações_{u.get('id')}", use_container_width=True):
+                    if st.button("Salvar alterações", key=f"save_{u.get('id')}", use_container_width=True):
                         upd = requests.put(
                             f"{api_base_url}/usuarios/{u.get('id')}/role",
                             headers={**headers, "Content-Type": "application/json"},
