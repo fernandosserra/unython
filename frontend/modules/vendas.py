@@ -51,10 +51,12 @@ def post_sale(auth_token: str, user_id: int, movimento_id: int, evento_id: int):
         st.error("O carrinho está vazio.")
         return False
 
+    pessoa_id = st.session_state.get("pessoa_id")  # opcional; se não existir, deixa None
+
     venda_payload = {
         "eventoId": evento_id,
         "responsavelId": user_id,
-        "pessoaId": 1,
+        "pessoaId": pessoa_id,
         "movimentoCaixaId": movimento_id,
         "itens": [],
     }
