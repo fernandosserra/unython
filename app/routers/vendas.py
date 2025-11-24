@@ -74,7 +74,9 @@ def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
 
 @router.get("/", response_model=List[VendaResponse], status_code=status.HTTP_200_OK)
 def listar_vendas(db: DBDependency):
-    venda_service = VendaService(db)
+    estoque_service = EstoqueService(db)
+    caixa_service = CaixaService(db)
+    venda_service = VendaService(db, estoque_service, caixa_service)
     vendas = venda_service.buscar_vendas()
     if not vendas:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma venda registrada.")
@@ -83,6 +85,8 @@ def listar_vendas(db: DBDependency):
 
 @router.get("/ultimas", response_model=List[VendaResponse], status_code=status.HTTP_200_OK)
 def listar_ultimas_vendas(db: DBDependency, limite: int = 10):
-    venda_service = VendaService(db)
+    estoque_service = EstoqueService(db)
+    caixa_service = CaixaService(db)
+    venda_service = VendaService(db, estoque_service, caixa_service)
     vendas = venda_service.buscar_ultimas_vendas(limite)
     return vendas
