@@ -6,6 +6,7 @@ from src.utils.dependencies import DBDependency
 from src.utils.schemas import VendaCreate, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
+from src.modules.estoque import EstoqueService
 from src.utils.models import Venda, ItemVenda, Caixa
 
 router = APIRouter(
@@ -32,7 +33,9 @@ def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
-    venda_service = VendaService(db)
+    estoque_service = EstoqueService(db)
+    caixa_service = CaixaService(db)
+    venda_service = VendaService(db, estoque_service, caixa_service)
 
     if not venda_data.id_evento:
         raise HTTPException(status_code=400, detail="id_evento é obrigatório.")

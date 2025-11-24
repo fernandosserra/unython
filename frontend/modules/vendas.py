@@ -99,21 +99,36 @@ def render_item_buttons_by_category(grouped_catalog: Dict[str, List[Dict[str, An
 
 
 def render_quantity_controls(item_data_map: Dict[int, Dict[str, Any]]):
-    st.subheader("2. Ajuste de Quantidade Rápido")
+    st.subheader("2. Ajuste de Quantidade")
     cart = st.session_state.get('cart', {})
     if not cart:
         st.info("Carrinho vazio. Selecione um produto para ajustar a quantidade.")
         return
-    for item_id, cart_item in cart.items():
-        st.markdown(f"**{cart_item['name']}** (Qtde: {cart_item['quantity']})")
-        cols = st.columns([2, 2, 2, 1])
-        nova_qtde = cols[0].number_input(f"Qtde_{item_id}", min_value=0, value=cart_item['quantity'], step=1)
-        if cols[1].button("Salvar", key=f"save_{item_id}"):
-            delta = nova_qtde - cart_item['quantity']
-            update_cart(item_id, cart_item['name'], cart_item['price'], delta)
-        if cols[2].button("Remover", key=f"rm_{item_id}"):
-            update_cart(item_id, cart_item['name'], cart_item['price'], -cart_item['quantity'])
-        cols[3].markdown(f"R$ {cart_item['price']:.2f}")
+    # Ajuste rápido no último item
+    last_item_id = list(cart.keys())[-1]
+    cart_item = cart[last_item_id]
+    st.markdown(f"**Ajustando (rápido):** **{cart_item['name']}** (Qtde atual: {cart_item['quantity']})")
+    q_cols = st.columns(4)
+    if q_cols[0].button("+1", key="q_plus_1", use_container_width=True):
+        update_cart(last_item_id, cart_item['name'], cart_item['price'], 1)
+    if q_cols[1].button("+5", key="q_plus_5", use_container_width=True):
+        update_cart(last_item_id, cart_item['name'], cart_item['price'], 5)
+    if q_cols[2].button("-1", key="q_minus_1", use_container_width=True):
+        update_cart(last_item_id, cart_item['name'], cart_item['price'], -1)
+    if q_cols[3].button("Zerar", key="q_zero", use_container_width=True):
+        update_cart(last_item_id, cart_item['name'], cart_item['price'], -cart_item['quantity'])
+
+    st.markdown("---")
+    st.markdown("**Editar itens do carrinho**")
+    for item_id, item in cart.items():
+        with st.expander(f"{item['name']} (Qtde: {item['quantity']})", expanded=False):
+            cols = st.columns([2, 1, 1])
+            nova_qtde = cols[0].number_input(f"Qtde_{item_id}", min_value=0, value=item['quantity'], step=1)
+            if cols[1].button("Salvar", key=f"save_{item_id}", use_container_width=True):
+                delta = nova_qtde - item['quantity']
+                update_cart(item_id, item['name'], item['price'], delta)
+            if cols[2].button("Remover", key=f"rm_{item_id}", use_container_width=True):
+                update_cart(item_id, item['name'], item['price'], -item['quantity'])
 
 
 def render_cart_summary(movimento_id: int, evento_id: int):
@@ -223,5 +238,4 @@ def vendas_page():
             else:
                 st.info("Abra um movimento para habilitar a venda.")
 
-    # Dica móvel
     st.caption("Dica: em tablets/smartphones, use as abas Produtos/Carrinho para alternar rapidamente.")
