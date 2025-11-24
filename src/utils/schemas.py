@@ -84,6 +84,7 @@ class Token(BaseModel):
     token_type: str
     user_id: int
     require_password_change: bool
+    role: str
 
 
 class ChangePasswordRequest(BaseModel):

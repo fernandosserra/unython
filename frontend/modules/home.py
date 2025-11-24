@@ -37,6 +37,7 @@ def _password_change_form(api_base_url: str, email: str, old_password: str):
                 st.session_state['auth_token'] = None
                 st.session_state['pending_email'] = None
                 st.session_state['pending_old_password'] = None
+                st.session_state['user_role'] = ''
                 st.rerun()
             else:
                 st.error("Falha ao atualizar senha. Verifique a senha atual e tente novamente.")

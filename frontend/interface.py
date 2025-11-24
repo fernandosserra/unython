@@ -34,8 +34,8 @@ def main_app():
     st.sidebar.markdown(f"**Usuário ID:** {st.session_state['user_id']}")
     st.sidebar.button("Voltar para Home", on_click=lambda: set_page("Home"), use_container_width=True)
     st.sidebar.button("Alterar senha", on_click=lambda: set_page("ChangePassword"), use_container_width=True)
-    role = st.session_state.get("user_role", "")
-    if role == "Administrador":
+    role = st.session_state.get("user_role", "") or ""
+    if role.lower() == "administrador":
         st.sidebar.button("Gestão de Caixas", on_click=lambda: set_page("Caixas"), use_container_width=True)
         st.sidebar.button("Movimentos", on_click=lambda: set_page("Movimentos"), use_container_width=True)
     st.sidebar.button("Sair", on_click=logout, use_container_width=True)
