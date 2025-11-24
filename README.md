@@ -81,4 +81,4 @@ streamlit run frontend/interface.py --server.port 8501 --server.headless true
 - Relatórios de estoque na interface.
 
 ## Licença
-Este projeto é licenciado sob GPL-3.0. Veja `LICENSE` para detalhes. Contato do desenvolvedor: fsserra@gmail.com.
+Este projeto é licenciado sob GPL-3.0. Veja `LICENSE` para detalhes. Contato do desenvolvedor: siegrfried@gmail.com ou fs.serra@outlook.com.
