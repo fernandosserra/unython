@@ -16,7 +16,7 @@ from src.utils.models import Usuario
 from src.utils.security import hash_password
 
 # Importa os routers
-from app.routers import estoque, vendas, relatorios, agendamentos, auth, catalogo
+from app.routers import estoque, vendas, relatorios, agendamentos, auth, catalogo, caixas
 
 # Cria a instância da API
 app = FastAPI(
@@ -50,6 +50,7 @@ app.include_router(relatorios.router)
 app.include_router(agendamentos.router)
 app.include_router(auth.router)
 app.include_router(catalogo.router)
+app.include_router(caixas.router)
 
 # ----------------------------------------------------
 

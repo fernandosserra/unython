@@ -77,6 +77,7 @@ def login_form(api_base_url):
                     st.session_state['auth_token'] = token_data['access_token']
                     st.session_state['user_id'] = token_data.get('user_id', 1)
                     st.session_state['user_email'] = email
+                    st.session_state['user_role'] = token_data.get('role', '')
                     st.success("Login bem-sucedido! Reiniciando...")
                     st.rerun()
                 else:

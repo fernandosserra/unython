@@ -10,6 +10,8 @@ from utils.components import API_BASE_URL, set_page
 
 # Páginas
 from modules.home import home_page, login_form, logout, change_password_page
+from modules.caixas import caixas_page
+from modules.movimentos import movimentos_page
 from modules.vendas import vendas_page
 
 
@@ -32,6 +34,10 @@ def main_app():
     st.sidebar.markdown(f"**Usuário ID:** {st.session_state['user_id']}")
     st.sidebar.button("Voltar para Home", on_click=lambda: set_page("Home"), use_container_width=True)
     st.sidebar.button("Alterar senha", on_click=lambda: set_page("ChangePassword"), use_container_width=True)
+    role = st.session_state.get("user_role", "")
+    if role == "Administrador":
+        st.sidebar.button("Gestão de Caixas", on_click=lambda: set_page("Caixas"), use_container_width=True)
+        st.sidebar.button("Movimentos", on_click=lambda: set_page("Movimentos"), use_container_width=True)
     st.sidebar.button("Sair", on_click=logout, use_container_width=True)
     st.sidebar.markdown("---")
 
@@ -44,6 +50,10 @@ def main_app():
         st.title("Módulo de Relatórios (Em Construção)")
     elif st.session_state["page"] == "ChangePassword":
         change_password_page(API_BASE_URL)
+    elif st.session_state["page"] == "Caixas":
+        caixas_page(API_BASE_URL)
+    elif st.session_state["page"] == "Movimentos":
+        movimentos_page(API_BASE_URL)
     # ... outros módulos
 
 

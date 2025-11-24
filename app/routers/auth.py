@@ -13,6 +13,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 from src.utils.dependencies import DBDependency
 from src.modules.usuario import UsuarioService
 from src.utils.schemas import Token, LoginRequest, ChangePasswordRequest
+from src.utils.models import Usuario
 
 # Cria o Router
 router = APIRouter(
@@ -45,6 +46,7 @@ async def login_for_access_token(
         "access_token": f"access-token-para-usuario-{usuario.id}",
         "token_type": "bearer",
         "user_id": usuario.id,
+        "role": usuario.role,
         "require_password_change": getattr(usuario, "require_password_change", False),
     }
 

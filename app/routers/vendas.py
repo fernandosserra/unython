@@ -1,12 +1,12 @@
 ﻿from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List, Optional
+from decimal import Decimal
 
 from src.utils.dependencies import DBDependency
 from src.utils.schemas import VendaCreate, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
 from src.utils.models import Venda, ItemVenda, Caixa
-from decimal import Decimal
 
 router = APIRouter(
     prefix="/vendas",
@@ -33,7 +33,10 @@ def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], val
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
     venda_service = VendaService(db)
-    movimento_id = _obter_movimento_caixa(db, venda_data.responsavel_id, venda_data.id_caixa)
+
+    movimento_id = venda_data.id_movimento_caixa
+    if not movimento_id:
+        movimento_id = _obter_movimento_caixa(db, venda_data.responsavel_id, venda_data.id_caixa)
 
     cabecalho = Venda(
         id_pessoa=venda_data.id_pessoa,

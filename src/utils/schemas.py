@@ -1,5 +1,4 @@
-﻿# src/utils/schemas.py
-from pydantic import BaseModel, Field
+﻿from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 from datetime import datetime, date
 
@@ -11,7 +10,8 @@ class ItemBase(BaseModel):
     valor_compra: float = Field(..., gt=0.0)
     valor_venda: float = Field(..., gt=0.0)
     status: str = 'Ativo'
-    
+
+
 class ItemVendaRequest(BaseModel):
     """Detalhe do item que está sendo vendido."""
     item_id: int = Field(..., gt=0, alias="itemId")
@@ -21,17 +21,20 @@ class ItemVendaRequest(BaseModel):
     class Config:
         populate_by_name = True
 
+
 class VendaCreate(BaseModel):
-    """Modelo completo para criar uma transação de venda."""
+    """Modelo completo para criar uma transacao de venda."""
     id_pessoa: Optional[int] = Field(None, alias="pessoaId")
     responsavel_id: int = Field(..., alias="responsavelId")
     id_evento: int = Field(..., alias="eventoId")
     id_caixa: Optional[int] = Field(None, alias="caixaId")
+    id_movimento_caixa: Optional[int] = Field(None, alias="movimentoCaixaId")
     itens: List[ItemVendaRequest]
-    
+
     class Config:
         populate_by_name = True
-        
+
+
 class AgendamentoUpdateStatus(BaseModel):
     compareceu: Literal['Sim', 'Nao']
 
@@ -39,7 +42,7 @@ class AgendamentoUpdateStatus(BaseModel):
 
 class ItemResponse(ItemBase):
     id: int
-    
+
     class Config:
         from_attributes = True
 
@@ -50,28 +53,31 @@ class VendaResponse(BaseModel):
     responsavel: str
     id_evento: int = Field(..., alias="eventoId")
     data_venda: date
-    
+
     class Config:
         from_attributes = True
         populate_by_name = True
+
 
 class InventarioResponse(BaseModel):
     nome: str
     saldo_atual: int
     custo_total_estoque: float
     valor_venda: float
-    
+
     class Config:
         from_attributes = True
-        
+
+
 # --- 4. AUTENTICACAO DA API ---
 
 class LoginRequest(BaseModel):
     email: str
     password: str
-    
+
     class Config:
         from_attributes = True
+
 
 class Token(BaseModel):
     access_token: str
