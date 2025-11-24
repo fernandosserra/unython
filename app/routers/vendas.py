@@ -14,8 +14,8 @@ router = APIRouter(
 )
 
 
-def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], valor_abertura: Decimal = Decimal("0.00")) -> int:
-    """Garante um movimento de caixa aberto e retorna o id_movimento."""
+def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_evento: int, valor_abertura: Decimal = Decimal("0.00")) -> int:
+    """Garante um movimento de caixa aberto para o evento e retorna o id_movimento."""
     caixa_service = CaixaService(db)
     if caixa_id:
         cid = caixa_id
@@ -27,16 +27,19 @@ def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], val
     mov = caixa_service.buscar_movimento_ativo(cid)
     if mov:
         return mov.id
-    return caixa_service.abrir_movimento(cid, responsavel_id, valor_abertura)
+    return caixa_service.abrir_movimento(cid, responsavel_id, valor_abertura, id_evento)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
     venda_service = VendaService(db)
 
+    if not venda_data.id_evento:
+        raise HTTPException(status_code=400, detail="id_evento é obrigatório.")
+
     movimento_id = venda_data.id_movimento_caixa
     if not movimento_id:
-        movimento_id = _obter_movimento_caixa(db, venda_data.responsavel_id, venda_data.id_caixa)
+        movimento_id = _obter_movimento_caixa(db, venda_data.responsavel_id, venda_data.id_caixa, venda_data.id_evento)
 
     cabecalho = Venda(
         id_pessoa=venda_data.id_pessoa,

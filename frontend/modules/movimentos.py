@@ -12,6 +12,19 @@ def movimentos_page(api_base_url: str):
         return
     headers = {"Authorization": f"Bearer {auth_token}"}
 
+    # Evento ativo
+    evento_resp = requests.get(f"{api_base_url}/eventos/aberto", headers=headers)
+    evento = evento_resp.json() if evento_resp.status_code == 200 else None
+    if not evento:
+        st.warning("Nenhum evento/dia aberto. Abra um antes.")
+        if st.button("Abrir evento/dia", use_container_width=True):
+            open_ev = requests.post(f"{api_base_url}/eventos/abrir", headers=headers)
+            if open_ev.status_code in (200, 201):
+                st.success("Evento aberto. Recarregue a página.")
+                st.rerun()
+        return
+    st.info(f"Evento aberto: {evento.get('nome')} (ID {evento.get('id')})")
+
     caixas_resp = requests.get(f"{api_base_url}/caixas/", headers=headers)
     caixas = caixas_resp.json() if caixas_resp.status_code == 200 else []
     caixa_options = {f"{c.get('id')} - {c.get('nome')}": c.get('id') for c in caixas}
@@ -32,17 +45,14 @@ def movimentos_page(api_base_url: str):
             close_resp = requests.post(f"{api_base_url}/caixas/{mov.get('id')}/fechar", headers=headers)
             if close_resp.status_code == 200:
                 st.success("Movimento fechado.")
+                st.rerun()
             else:
                 st.error("Falha ao fechar movimento.")
     else:
         st.warning("Nenhum movimento aberto.")
         valor = st.number_input("Valor de abertura", min_value=0.0, value=0.0, step=10.0)
-        evento_id = st.number_input("ID do evento/dia (opcional)", min_value=0, value=0, step=1)
-        evento_param = evento_id if evento_id > 0 else None
         if st.button("Abrir movimento", use_container_width=True):
-            params = {"usuario_id": user_id, "valor_abertura": valor}
-            if evento_param:
-                params["id_evento"] = evento_param
+            params = {"usuario_id": user_id, "valor_abertura": valor, "id_evento": evento.get('id')}
             open_resp = requests.post(
                 f"{api_base_url}/caixas/{selected_caixa}/abrir",
                 headers=headers,
