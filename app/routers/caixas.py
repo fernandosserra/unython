@@ -38,10 +38,15 @@ def movimento_ativo(caixa_id: int, db: DBDependency):
 def abrir_movimento(caixa_id: int, usuario_id: int, valor_abertura: Decimal, id_evento: Optional[int] = None, db: DBDependency = None):
     service = CaixaService(db)
     if id_evento is None:
-        raise HTTPException(status_code=400, detail="id_evento é obrigatório para abrir movimento.")
+        from src.modules.evento import EventoService
+        evs = EventoService(db)
+        ev = evs.buscar_evento_aberto()
+        if not ev:
+            raise HTTPException(status_code=400, detail="Nenhum evento aberto. Abra um evento antes.")
+        id_evento = ev.id
     mid = service.abrir_movimento(caixa_id, usuario_id, valor_abertura, id_evento)
     if not mid:
-        raise HTTPException(status_code=400, detail="Nao foi possivel abrir movimento.")
+        raise HTTPException(status_code=400, detail="Nao foi possivel abrir movimento (ja existe aberto?).")
     return {"movimento_id": mid}
 
 

@@ -88,9 +88,9 @@ def render_item_buttons_by_category(grouped_catalog: Dict[str, List[Dict[str, An
     for tab_index, category_name in enumerate(category_names):
         with tabs[tab_index]:
             items_in_category = grouped_catalog[category_name]
-            cols = st.columns(3)
+            cols = st.columns(2)  # mais responsivo em mobile
             for index, item in enumerate(items_in_category):
-                col = cols[index % 3]
+                col = cols[index % 2]
                 if col.button(f"{item['nome']}\n(R$ {item['valor_venda']:.2f})", key=f"item_btn_{item['id']}", use_container_width=True):
                     update_cart(item['id'], item['nome'], item['valor_venda'], 1)
 
@@ -146,8 +146,25 @@ def vendas_page():
         st.error("Erro de sessão: Token não encontrado. Faça login novamente.")
         return
 
-    # Caixa e movimento
     headers = {"Authorization": f"Bearer {auth_token}"}
+
+    # Evento/Dia
+    evento_resp = requests.get(f"{API_BASE_URL}/eventos/aberto", headers=headers)
+    evento = evento_resp.json() if evento_resp.status_code == 200 else None
+    if not evento:
+        st.warning("Nenhum evento/dia aberto. Abra um em Movimentos.")
+        if st.button("Abrir evento agora", use_container_width=True):
+            create_ev = requests.post(f"{API_BASE_URL}/eventos/abrir", headers=headers)
+            if create_ev.status_code in (200, 201):
+                st.success("Evento aberto. Recarregando...")
+                st.rerun()
+            else:
+                st.error("Falha ao abrir evento.")
+        return
+    evento_id = evento.get('id')
+    st.info(f"Evento ativo: {evento.get('nome')} (ID {evento_id})")
+
+    # Caixa e movimento
     caixas_resp = requests.get(f"{API_BASE_URL}/caixas/", headers=headers)
     caixas = caixas_resp.json() if caixas_resp.status_code == 200 else []
     caixa_options = {f"{c.get('id')} - {c.get('nome')}": c.get('id') for c in caixas}
@@ -155,26 +172,31 @@ def vendas_page():
     selected_caixa = caixa_options.get(selected_label) if selected_label else None
 
     movimento_id = None
+    movimento_status = st.empty()
     if selected_caixa:
         mov_resp = requests.get(f"{API_BASE_URL}/caixas/{selected_caixa}/movimento-ativo", headers=headers)
         if mov_resp.status_code == 200:
             mov = mov_resp.json()
             movimento_id = mov.get('id')
-            st.success(f"Movimento aberto: ID {movimento_id}")
+            movimento_status.success(f"Movimento aberto: ID {movimento_id} (Evento {mov.get('id_evento')})")
         else:
-            st.warning("Nenhum movimento aberto para este caixa.")
+            movimento_status.warning("Nenhum movimento aberto para este caixa.")
             valor = st.number_input("Valor de abertura", min_value=0.0, value=0.0, step=10.0)
             if st.button("Abrir movimento", use_container_width=True):
                 open_resp = requests.post(
                     f"{API_BASE_URL}/caixas/{selected_caixa}/abrir",
                     headers=headers,
-                    params={"usuario_id": user_id, "valor_abertura": valor},
+                    params={"usuario_id": user_id, "valor_abertura": valor, "id_evento": evento_id},
                 )
                 if open_resp.status_code in (200, 201):
-                    st.success("Movimento aberto. Recarregue a página se necessário.")
+                    st.success("Movimento aberto. Recarregando...")
                     st.rerun()
                 else:
-                    st.error("Falha ao abrir movimento.")
+                    try:
+                        detail = open_resp.json().get("detail")
+                    except Exception:
+                        detail = open_resp.text
+                    st.error(f"Falha ao abrir movimento: {detail}")
     else:
         st.info("Selecione um caixa ou crie um na página de Gestão de Caixas.")
         return
@@ -184,14 +206,21 @@ def vendas_page():
         st.warning("Catálogo vazio. Cadastre categorias e itens ativos antes de vender.")
         return
 
+    # Layout mais responsivo/PDV
     item_data_map = get_item_data_map(grouped_catalog)
-    left_col, right_col = st.columns([2, 1])
-    with left_col:
-        render_item_buttons_by_category(grouped_catalog)
-        st.markdown("---")
-        render_quantity_controls(item_data_map)
-    with right_col:
-        if movimento_id:
-            render_cart_summary(movimento_id, evento_id=1)
-        else:
-            st.info("Abra um movimento para habilitar a venda.")
+    st.markdown("---")
+    st.subheader("Seleção e Carrinho")
+    with st.container():
+        tabs = st.tabs(["Produtos", "Carrinho"])
+        with tabs[0]:
+            render_item_buttons_by_category(grouped_catalog)
+            st.markdown("---")
+            render_quantity_controls(item_data_map)
+        with tabs[1]:
+            if movimento_id:
+                render_cart_summary(movimento_id, evento_id=evento_id)
+            else:
+                st.info("Abra um movimento para habilitar a venda.")
+
+    # Dica móvel
+    st.caption("Dica: em tablets/smartphones, use as abas Produtos/Carrinho para alternar rapidamente.")
