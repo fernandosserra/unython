@@ -7,6 +7,7 @@ from src.utils.schemas import VendaCreate, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
 from src.modules.estoque import EstoqueService
+from src.modules.usuario import UsuarioService
 from src.utils.models import Venda, ItemVenda, Caixa
 
 router = APIRouter(
@@ -88,5 +89,18 @@ def listar_ultimas_vendas(db: DBDependency, limite: int = 10):
     estoque_service = EstoqueService(db)
     caixa_service = CaixaService(db)
     venda_service = VendaService(db, estoque_service, caixa_service)
+    usuario_service = UsuarioService(db)
+    users = {u.id: u.nome for u in usuario_service.buscar_usuarios()}
     vendas = venda_service.buscar_ultimas_vendas(limite)
-    return vendas
+    # Enriquecer responsavel com nome, se for id numérico
+    enriched = []
+    for v in vendas:
+        try:
+            rid = int(v.responsavel)
+            nome = users.get(rid, v.responsavel)
+        except Exception:
+            nome = v.responsavel
+        data = v.__dict__.copy()
+        data["responsavel"] = nome
+        enriched.append(data)
+    return enriched

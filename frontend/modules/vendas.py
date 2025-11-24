@@ -2,18 +2,18 @@
 import requests
 from decimal import Decimal
 from typing import Dict, Any, List
-from utils.components import API_BASE_URL, set_page
+from utils.components import API_BASE_URL
 
 
 @st.cache_data(ttl=300)
 def get_grouped_catalog(auth_token: str) -> Dict[str, List[Dict[str, Any]]]:
-    GRUPO_ENDPOINT = f"{API_BASE_URL}/catalogo/grupos"
+    url = f"{API_BASE_URL}/catalogo/grupos"
     headers = {"Authorization": f"Bearer {auth_token}"}
     try:
-        response = requests.get(GRUPO_ENDPOINT, headers=headers)
-        if response.status_code == 200:
-            return response.json()
-        st.error(f"Falha ao carregar catálogo. Código: {response.status_code}.")
+        resp = requests.get(url, headers=headers)
+        if resp.status_code == 200:
+            return resp.json()
+        st.error(f"Falha ao carregar catálogo. Código: {resp.status_code}.")
         return {}
     except requests.exceptions.ConnectionError:
         st.error("Erro de conexão com a API.")
@@ -51,35 +51,31 @@ def post_sale(auth_token: str, user_id: int, movimento_id: int, evento_id: int):
         st.error("O carrinho está vazio.")
         return False
 
-    # Rastreio: usa o próprio usuário logado como pessoa (auditoria)
-    pessoa_id = user_id
-
     venda_payload = {
         "eventoId": evento_id,
         "responsavelId": user_id,
-        "pessoaId": pessoa_id,
+        "pessoaId": user_id,
         "movimentoCaixaId": movimento_id,
         "itens": [],
     }
     for item_id, item_data in cart.items():
-        item_price_float = float(item_data['price'])
         venda_payload['itens'].append({
             "itemId": item_id,
             "quantidade": item_data['quantity'],
-            "valor_unitario": item_price_float
+            "valor_unitario": float(item_data['price'])
         })
 
     headers = {"Authorization": f"Bearer {auth_token}", "Content-Type": "application/json"}
     try:
-        response = requests.post(f"{API_BASE_URL}/vendas", headers=headers, json=venda_payload)
-        if response.status_code in (200, 201):
+        resp = requests.post(f"{API_BASE_URL}/vendas", headers=headers, json=venda_payload)
+        if resp.status_code in (200, 201):
             st.success("Venda registrada com sucesso!")
             clear_cart()
             return True
         try:
-            error_detail = response.json().get('detail', "")
+            error_detail = resp.json().get('detail', "")
         except Exception:
-            error_detail = response.text or f"Falha desconhecida. Código: {response.status_code}"
+            error_detail = resp.text or f"Falha desconhecida. Código: {resp.status_code}"
         st.error(f"Falha ao finalizar venda: {error_detail}")
         return False
     except requests.exceptions.ConnectionError:
@@ -94,7 +90,7 @@ def render_item_buttons_by_category(grouped_catalog: Dict[str, List[Dict[str, An
     for tab_index, category_name in enumerate(category_names):
         with tabs[tab_index]:
             items_in_category = grouped_catalog[category_name]
-            cols = st.columns(2)  # mais responsivo em mobile
+            cols = st.columns(2)
             for index, item in enumerate(items_in_category):
                 col = cols[index % 2]
                 if col.button(f"{item['nome']}\n(R$ {item['valor_venda']:.2f})", key=f"item_btn_{item['id']}", use_container_width=True):
@@ -107,7 +103,6 @@ def render_quantity_controls(item_data_map: Dict[int, Dict[str, Any]]):
     if not cart:
         st.info("Carrinho vazio. Selecione um produto para ajustar a quantidade.")
         return
-    # Ajuste rápido no último item
     last_item_id = list(cart.keys())[-1]
     cart_item = cart[last_item_id]
     st.markdown(f"**Ajustando (rápido):** **{cart_item['name']}** (Qtde atual: {cart_item['quantity']})")
@@ -225,34 +220,26 @@ def vendas_page():
         st.warning("Catálogo vazio. Cadastre categorias e itens ativos antes de vender.")
         return
 
-    # Layout mais responsivo/PDV
-    item_data_map = get_item_data_map(grouped_catalog)
+    # Controle de navegação em vez de tabs (persiste seleção)
+    tab_choice = st.radio("Ver:", ["Produtos", "Carrinho", "Últimas vendas"], horizontal=True, key="pdv_tab")
     st.markdown("---")
-    st.subheader("Seleção e Carrinho")
-    with st.container():
-        tabs = st.tabs(["Produtos", "Carrinho", "Últimas vendas"])
-        with tabs[0]:
-            render_item_buttons_by_category(grouped_catalog)
-            st.markdown("---")
-            render_quantity_controls(item_data_map)
-        with tabs[1]:
-            if movimento_id:
-                render_cart_summary(movimento_id, evento_id=evento_id)
-            else:
-                st.info("Abra um movimento para habilitar a venda.")
-        with tabs[2]:
-            if st.button("Listar últimas 10 vendas", use_container_width=True):
-                resp = requests.get(f"{API_BASE_URL}/vendas/ultimas", headers=headers, params={"limite": 10})
-                if resp.status_code == 200:
-                    vendas = resp.json()
-                    if not vendas:
-                        st.info("Nenhuma venda encontrada.")
-                    for v in vendas:
-                        st.markdown(
-                            f"**Venda ID {v.get('id')}** - Evento {v.get('eventoId', v.get('id_evento', '?'))} "
-                            f"- Movimento {v.get('id_movimento_caixa')} - Responsável {v.get('responsavel')}"
-                        )
-                else:
-                    st.error(f"Falha ao carregar vendas: {resp.text}")
 
-    st.caption("Dica: em tablets/smartphones, use as abas Produtos/Carrinho para alternar rapidamente.")
+    if tab_choice == "Produtos":
+        render_item_buttons_by_category(grouped_catalog)
+        st.markdown("---")
+        render_quantity_controls(get_item_data_map(grouped_catalog))
+    elif tab_choice == "Carrinho":
+        render_cart_summary(movimento_id, evento_id=evento_id)
+    else:
+        if st.button("Listar últimas 10 vendas", use_container_width=True, key="btn_ultimas"):
+            resp = requests.get(f"{API_BASE_URL}/vendas/ultimas", headers=headers, params={"limite": 10})
+            st.session_state['last_sales'] = resp.json() if resp.status_code == 200 else []
+            if resp.status_code != 200:
+                st.error(f"Falha ao carregar vendas: {resp.text}")
+        for v in st.session_state.get('last_sales', []):
+            st.markdown(
+                f"**Venda ID {v.get('id')}** - Evento {v.get('id_evento') or v.get('eventoId')} "
+                f"- Movimento {v.get('id_movimento_caixa')} - Responsável {v.get('responsavel')}"
+            )
+
+    st.caption("Dica: em tablets/smartphones, use Produtos/Carrinho/Últimas para alternar rapidamente.")
