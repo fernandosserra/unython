@@ -44,7 +44,6 @@ def get_db_status(db: DBDependency):
 # 2. INCLUSÃO DE ROUTERS
 # ----------------------------------------------------
 
-app.include_router(estoque.router)
 app.include_router(vendas.router)
 app.include_router(relatorios.router)
 app.include_router(agendamentos.router)
@@ -52,6 +51,7 @@ app.include_router(auth.router)
 app.include_router(catalogo.router)
 app.include_router(caixas.router)
 app.include_router(eventos.router)
+app.include_router(estoque.router)
 
 # ----------------------------------------------------
 
