@@ -70,6 +70,7 @@ streamlit run frontend/interface.py --server.port 8501 --server.headless true
 - Valores monetários usam `Decimal` nos models.
 - Prefira `logging` em vez de `print` em produção.
 - Autenticação: superusuário bootstrap `admin@unython.local` com senha inicial `change-me-now`; a API força `require_password_change` e o frontend Streamlit exige redefinição no primeiro acesso (endpoint `/change-password`).
+- Para alterar a senha logado: no sidebar, clique em “Alterar senha” e use o formulário (usa `/change-password` por baixo).
 
 ## Roadmap curto
 - Cancelamento de vendas com permissão.

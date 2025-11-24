@@ -76,6 +76,7 @@ def login_form(api_base_url):
                         return
                     st.session_state['auth_token'] = token_data['access_token']
                     st.session_state['user_id'] = token_data.get('user_id', 1)
+                    st.session_state['user_email'] = email
                     st.success("Login bem-sucedido! Reiniciando...")
                     st.rerun()
                 else:
@@ -100,3 +101,30 @@ def home_page(set_page_func):
     st.markdown("---")
     if st.button("Atendimento / Agendamentos", key="btn_agend_full", use_container_width=True):
         set_page_func('Agendamentos')
+
+
+def change_password_page(api_base_url: str):
+    st.title("Alterar senha")
+    email = st.session_state.get('user_email')
+    if not email:
+        st.error("Email do usuário não encontrado. Faça login novamente.")
+        return
+
+    with st.form("change_password_form_logged"):
+        old_password = st.text_input("Senha atual", type="password")
+        new_password = st.text_input("Nova senha", type="password")
+        confirm_password = st.text_input("Confirme a nova senha", type="password")
+        submitted = st.form_submit_button("Atualizar senha")
+        if submitted:
+            if new_password != confirm_password or not new_password:
+                st.error("As senhas não conferem ou estão vazias.")
+                return
+            resp = requests.post(
+                f"{api_base_url}/change-password",
+                json={"email": email, "old_password": old_password, "new_password": new_password},
+            )
+            if resp.status_code == 200:
+                st.success("Senha atualizada. Faça login novamente.")
+                logout()
+            else:
+                st.error("Falha ao atualizar senha. Verifique a senha atual e tente novamente.")

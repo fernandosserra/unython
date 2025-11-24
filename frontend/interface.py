@@ -9,7 +9,7 @@ import streamlit as st
 from utils.components import API_BASE_URL, set_page
 
 # Páginas
-from modules.home import home_page, login_form, logout
+from modules.home import home_page, login_form, logout, change_password_page
 from modules.vendas import vendas_page
 
 
@@ -31,6 +31,7 @@ def main_app():
     st.sidebar.title("Unython")
     st.sidebar.markdown(f"**Usuário ID:** {st.session_state['user_id']}")
     st.sidebar.button("Voltar para Home", on_click=lambda: set_page("Home"), use_container_width=True)
+    st.sidebar.button("Alterar senha", on_click=lambda: set_page("ChangePassword"), use_container_width=True)
     st.sidebar.button("Sair", on_click=logout, use_container_width=True)
     st.sidebar.markdown("---")
 
@@ -41,6 +42,8 @@ def main_app():
         vendas_page()
     elif st.session_state["page"] == "Relatorios":
         st.title("Módulo de Relatórios (Em Construção)")
+    elif st.session_state["page"] == "ChangePassword":
+        change_password_page(API_BASE_URL)
     # ... outros módulos
 
 
