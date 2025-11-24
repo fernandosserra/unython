@@ -1,15 +1,17 @@
 # src/utils/models.py
 from dataclasses import dataclass, field
-from datetime import datetime, date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import Optional, List, Tuple
+from typing import Optional
+
 
 @dataclass
 class Pessoa:
     nome: str
     telefone: Optional[str] = None
-    data_cadastro: Optional[date] = datetime.now().date()
+    data_cadastro: date = field(default_factory=lambda: datetime.now().date())
     id: Optional[int] = None
+
 
 @dataclass
 class Usuario:
@@ -17,105 +19,117 @@ class Usuario:
     email: str
     funcao: str
     hashed_password: Optional[str] = None
-    role: str = 'Vendedor'
-    status: str = 'Ativo'
+    role: str = "Vendedor"
+    status: str = "Ativo"
     id: Optional[int] = None
-    
+
+
 @dataclass
 class Item:
     nome: str
-    valor_compra: float
-    valor_venda: float    
-    id_categoria: Optional[int] = None # <-- Deve ser Optional ou ter um default    
-    status: str = 'Ativo' 
+    valor_compra: Decimal
+    valor_venda: Decimal
+    id_categoria: Optional[int] = None
+    status: str = "Ativo"
     id: Optional[int] = None
-    
+
+
 @dataclass
 class Categoria:
-    """Define as categorias de produtos (Bebidas, Esotéricos, etc.)."""
+    """Define categorias de produtos (Bebidas, Esotericos, etc.)."""
+
     nome: str
     descricao: Optional[str] = None
-    status: str = 'Ativo'
+    status: str = "Ativo"
     id: Optional[int] = None
-    
+
+
 @dataclass
 class MovimentoEstoque:
     id_item: int
     quantidade: int
-    tipo_movimento: str             # 'Entrada' ou 'Saída'
-    origem_recurso: str = 'Doação'  # Ex: 'Doação', 'Compra_Fundo_Feirinha'
+    tipo_movimento: str  # 'Entrada' ou 'Saida'
+    origem_recurso: str = "Doacao"
     id_usuario: Optional[int] = None
     id_evento: Optional[int] = None
-    data_movimento: datetime = datetime.now()
+    data_movimento: datetime = field(default_factory=datetime.now)
     id: Optional[int] = None
-    
+
+
 @dataclass
 class Evento:
     nome: str
-    data_evento: datetime
+    data_evento: date
     tipo: str
-    status: str = 'Aberto'
+    status: str = "Aberto"
     id: Optional[int] = None
+
 
 @dataclass
 class Agendamento:
     id_pessoa: int
     tipo_servico: str
-    id_evento: int 
+    id_evento: int
     id_facilitador: Optional[int] = None
-    data_hora: datetime = datetime.now()
-    status: str = 'Agendado'        
-    # NOVO CAMPO CRÍTICO: Rastreamento de Presença
-    # Opções: 'Pendente' (default), 'Sim', 'Não'
-    compareceu: str = 'Pendente' 
-    
+    data_hora: datetime = field(default_factory=datetime.now)
+    status: str = "Agendado"
+    compareceu: str = "Pendente"  # 'Pendente', 'Sim', 'Nao'
     id: Optional[int] = None
-    
+
+
+@dataclass
+class ItemVenda:
+    # Tabela de ligação (um item em uma venda específica)
+    id_venda: int
+    id_item: int
+    quantidade: int
+    valor_unitario: Decimal  # Preço no momento da venda
+    id: Optional[int] = None
+
+
 @dataclass
 class Venda:
     id_pessoa: Optional[int]
     responsavel: str
-    id_evento: int                  # <--- CHAVE ESTRANGEIRA ADICIONADA!
-    data_venda: Optional[date] = datetime.now().date()
+    id_evento: int
+    id_movimento_caixa: int  # Campo obrigatório
+    data_venda: date = field(default_factory=lambda: datetime.now().date())
     id: Optional[int] = None
-    
-@dataclass
-class ItemVenda:
-    # Esta é a Tabela de LIGAÇÃO (Um item em uma venda específica)
-    id_venda: int
-    id_item: int
-    quantidade: int
-    valor_unitario: float # O preço do momento da venda
-    id: Optional[int] = None
-    
+
+
 @dataclass
 class MovimentoFinanceiro:
     """Representa uma entrada ou saída financeira no fluxo de caixa."""
+
     id: Optional[int] = None
-    data_registro: datetime = datetime.now()
+    data_registro: datetime = field(default_factory=datetime.now)
     id_usuario: int = 0
-    tipo_movimento: str = 'Receita'  # 'Receita' ou 'Despesa'
-    valor: float = 0.0
+    tipo_movimento: str = "Receita"  # 'Receita' ou 'Despesa'
+    valor: Decimal = Decimal("0.00")
     descricao: str = ""
-    categoria: str = "Geral" # Ex: 'Aluguel', 'Doação', 'Salário'
-    id_evento: Optional[int] = None # Para vincular a um evento específico
-    status: str = 'Ativo' # 'Ativo' ou 'Cancelado'
-    
+    categoria: str = "Geral"  # Ex: 'Aluguel', 'Doacao', 'Salario'
+    id_evento: Optional[int] = None  # Vinculo a um evento específico
+    status: str = "Ativo"  # 'Ativo' ou 'Cancelado'
+
+
 @dataclass
 class Caixa:
     """Representa um ponto de venda físico (Caixa)."""
+
     nome: str
     descricao: Optional[str] = None
-    status: str = 'Ativo'
+    status: str = "Ativo"
     id: Optional[int] = None
+
 
 @dataclass
 class MovimentoCaixa:
     """Registra a abertura e fechamento de uma sessão de caixa."""
+
     id_caixa: int
     id_usuario_abertura: int
-    valor_abertura: Decimal = Decimal('0.00')
-    status: str = 'Aberto' # 'Aberto', 'Fechado'
+    valor_abertura: Decimal = Decimal("0.00")
+    status: str = "Aberto"  # 'Aberto', 'Fechado'
     data_abertura: datetime = field(default_factory=datetime.now)
     data_fechamento: Optional[datetime] = None
     id: Optional[int] = None

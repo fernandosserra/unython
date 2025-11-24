@@ -1,41 +1,81 @@
-# Unython - Gestao Estruturada para Organizacoes de Impacto
+# Unython — Gestão Estruturada para Organizações de Impacto
 
-> Organizacao, auditoria e escalabilidade para ONGs, igrejas, templos e iniciativas sociais.
+Organização, rastreabilidade e operação por evento (feirinhas, cultos, atendimentos) em Python, com API FastAPI e interface Streamlit.
 
-## Sobre
-Unython e uma solucao modular em Python focada em seguranca, rastreabilidade e operacao por evento (feirinhas, cultos, atendimentos). Pode rodar on-premise ou em nuvem e esta pronta para evoluir para APIs moveis.
+## Arquitetura
+- Orquestração: `app/main.py` sobe API (FastAPI/Uvicorn) e Interface (Streamlit).
+- API: `app/api_main.py` + `app/routers/*`.
+- Frontend: `frontend/interface.py` (Streamlit) + `frontend/modules`.
+- Domínio/serviços: `src/modules/*` (pessoas, usuários, agendamentos, vendas, estoque, relatórios, fluxo de caixa, caixas, backup).
+- Infra/utilitários: `src/utils/*` (models, database manager, segurança, config).
+- Testes: `tests/` (fluxo geral de integração).
 
-## Arquitetura de Servicos
-- Apresentacao: `app/main.py` orquestra os modulos e provisiona o banco.
-- Regras de negocio: `src/modules/*` (Pessoas, Usuarios, Agendamentos, Vendas, Estoque, Relatorios, Fluxo de Caixa, Caixas, Backup).
-- Infra/Utilidades: `src/utils/*` (models, database manager, seguranca/cripto, aliases de configuracao).
-- Persistencia: PostgreSQL configurado em `config/secrets.toml`; criacao de tabelas automatica via `DatabaseManager.create_tables`.
+## Banco de Dados
+- PostgreSQL configurado em `config/secrets.toml`:
+  ```toml
+  [database]
+  type = "postgres"
+  host = "localhost"
+  dbname = "unython_db"
+  user = "postgres"
+  password = "sua_senha"
+  port = 5432
+  ```
+- Use `config/secrets.toml.example` como modelo e copie para `config/secrets.toml`.
+- `DatabaseManager` cria/verifica tabelas ao iniciar. Em desenvolvimento, use um banco descartável.
 
-## Recursos Principais
-- Seguranca e backup: conexao PostgreSQL via secrets, hash/verificacao de senha (`UsuarioService`), backup para Google Drive (`backup*.py`).
-- Contexto por evento: agendamentos, vendas, estoque e fluxo financeiro amarrados a um `Evento`, permitindo fechamento fiscal/logistico por periodo.
-- Pessoas e usuarios: cadastro de consulentes e facilitadores com UPSERT de usuario, roles (Vendedor, Administrador, etc.) e login validado por hash.
-- Agendamentos: ligacao entre Pessoa, Facilitador e Evento; status e controle de presenca (`compareceu`).
-- Catalogo e estoque: categorias, itens com preco de compra/venda, movimentos de estoque (Entrada/Saida) com origem de recurso e responsavel, sempre vinculados ao evento.
-- Vendas atomicas: cabecalho + itens + saida de estoque em unica transacao; rollback automatico se faltar estoque; venda sempre vinculada a evento e responsavel.
-- Fluxo financeiro: receitas/despesas com categoria, status e associacao a evento; saldo consolidado.
-- Caixas fisicos: registro de caixas, abertura/fechamento de movimento com valor de abertura e usuario responsavel.
-- Relatorios: faturamento mensal, lucro bruto mensal, despesas por categoria, inventario completo (saldo e custo), pendencias de agendamento.
+## Requisitos
+- Python 3.10+ (testado em 3.13)
+- PostgreSQL
+- `pip install -r requirements.txt`
 
-## Roadmap Imediato
-- Cancelamento de vendas com senha de administrador ou gerente.
-- Tela de abertura e fechamento de movimento geral.
-- Mecanismo para bloquear conexoes de celulares nao autorizados (validacao por MAC Address).
-- Vinculo obrigatorio entre vendedor e venda para apuracao.
-- Identificador do caixa e rastreio do respectivo movimento.
-- Pagina de recepcao de consulentes (Agendamentos).
+## Como rodar
 
-## Como Rodar
-1) Crie `config/secrets.toml` com as credenciais do PostgreSQL (`type = "postgres"`, host, dbname, user, password, port).
-2) `python -m venv venv` e ative (`venv\\Scripts\\activate` no Windows).
-3) `pip install -r requirements.txt`.
-4) `python app/main.py` para criar tabelas, popular dados de exemplo e validar o fluxo end-to-end.
+### Orquestrador (API + UI)
+```bash
+# Windows (PowerShell)
+python app/main.py                   # API:127.0.0.1:8000, UI:127.0.0.1:8501
+python app/main.py --api-only        # Só API
+python app/main.py --ui-only         # Só UI
+python app/main.py --api-port 8001 --ui-port 8502 --no-reload
+```
 
-## Contribuicao
-- Mantenha a separacao de camadas (services + models + infra) e transacoes atomicas nas operacoes criticas.
-- Prefira commits pequenos e testaveis; descreva regras de negocio e impactos de dados nas mensagens.
+### API isolada
+```bash
+python -m uvicorn app.api_main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+### Interface Streamlit isolada
+```bash
+streamlit run frontend/interface.py --server.port 8501 --server.headless true
+```
+
+## Testes
+- Use o Python do venv:
+  ```bash
+  .\venv\Scripts\python.exe -m pytest -vv tests/teste_fluxo_geral.py
+  ```
+- Fixture `cleanup_db` faz TRUNCATE/RESTART IDENTITY antes/depois de cada teste (usa o Postgres de `secrets.toml`).
+- Discovery configurado em `pytest.ini` (`test_*.py` e `teste_*.py`).
+
+## Notas de desenvolvimento
+- Setup rápido:
+  ```bash
+  python -m venv venv
+  .\venv\Scripts\activate
+  pip install -r requirements.txt
+  ```
+- Imports: o orquestrador ajusta `PYTHONPATH`; evite `sys.path.append` em novos módulos.
+- Valores monetários usam `Decimal` nos models.
+- Prefira `logging` em vez de `print` em produção.
+
+## Roadmap curto
+- Cancelamento de vendas com permissão.
+- Tela de abertura/fechamento de movimento de caixa.
+- CORS/logging estruturado na API e schemas Pydantic por rota.
+
+## Roadmap longo
+- Interface de Agendamento (validação de presença/ausência).
+- Relatórios para administradores.
+- Relatórios de fechamento de caixa.
+- Relatórios de estoque na interface.

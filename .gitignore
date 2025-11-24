@@ -10,6 +10,7 @@
 config/credentials.json
 config/token.json
 config/secrets.toml
+config/secrets.local.toml
 
 # 3. ARTEFATOS DE DADOS E CACHE
 # O banco de dados e os caches gerados pelo Python e pelo VS Code
@@ -17,9 +18,11 @@ config/secrets.toml
 /data/*.sqlite
 __pycache__/           # Cache de compilação de Python (não é código fonte)
 **/__pycache__/
+.pytest_cache/
 .vscode/               # Configurações locais do VSCode (se houver, evite conflitos)
 .idea/                 # Configurações do PyCharm/IntelliJ (se houver)
 
 # 4. Logs e Executáveis
 *.log
 *.exe
+*.pyc
