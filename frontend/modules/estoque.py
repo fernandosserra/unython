@@ -7,6 +7,10 @@ def estoque_page(api_base_url: str):
     st.title("Gestão de Estoque")
     auth_token = st.session_state.get("auth_token")
     user_id = st.session_state.get("user_id")
+    role = (st.session_state.get("user_role") or "").lower()
+    if role != "administrador":
+        st.error("Apenas administradores podem acessar o módulo de estoque.")
+        return
     if not auth_token:
         st.error("Sessão inválida. Faça login.")
         return
