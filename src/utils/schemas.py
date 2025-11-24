@@ -88,3 +88,11 @@ class Token(BaseModel):
     """Modelo de resposta para o Token de acesso."""
     access_token: str
     token_type: str
+    user_id: int
+    require_password_change: bool
+
+
+class ChangePasswordRequest(BaseModel):
+    email: str
+    old_password: str
+    new_password: str

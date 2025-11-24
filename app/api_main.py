@@ -11,6 +11,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 # Importa a infraestrutura do back-end
 from src.utils.database_manager import DatabaseManager
 from src.utils.dependencies import DBDependency
+from src.modules.usuario import UsuarioService
+from src.utils.models import Usuario
+from src.utils.security import hash_password
 
 # Importa os routers
 from app.routers import estoque, vendas, relatorios, agendamentos, auth, catalogo
@@ -49,6 +52,31 @@ app.include_router(auth.router)
 app.include_router(catalogo.router)
 
 # ----------------------------------------------------
+
+
+@app.on_event("startup")
+def ensure_superuser():
+    """Garante um superusuário padrão para bootstrap."""
+    dbm = DatabaseManager()
+    dbm.connect()
+    dbm.create_tables()
+    usuario_service = UsuarioService(dbm)
+
+    email = "admin@unython.local"
+    password = "change-me-now"
+    admin = usuario_service.buscar_usuario_por_email(email)
+    if not admin:
+        usuario = Usuario(
+            nome="Super Usuário",
+            email=email,
+            funcao="Administrador",
+            role="Administrador",
+            status="Ativo",
+            require_password_change=True,
+        )
+        usuario_service.registrar_usuario(usuario, password, require_password_change=True)
+        print(f"[bootstrap] Superusuário criado com email {email}")
+    dbm.disconnect()
 
 
 if __name__ == "__main__":

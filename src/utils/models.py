@@ -23,6 +23,7 @@ class Usuario:
     email: str
     funcao: str
     hashed_password: Optional[str] = None
+    require_password_change: bool = False
     role: str = "Vendedor"
     status: str = "Ativo"
     id: Optional[int] = None

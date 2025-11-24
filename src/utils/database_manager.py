@@ -134,6 +134,7 @@ class DatabaseManager:
             nome VARCHAR(255) NOT NULL,
             email VARCHAR(255) UNIQUE,
             funcao VARCHAR(100),
+            require_password_change BOOLEAN DEFAULT FALSE,
             role VARCHAR(50) DEFAULT 'Vendedor',
             status VARCHAR(50) DEFAULT 'Ativo',
             hashed_password VARCHAR(128)
@@ -299,6 +300,12 @@ class DatabaseManager:
 
         for query in queries:
             self.execute_query(query, commit=True)
+
+        # Ajuste para bases já existentes: adiciona coluna se não existir
+        self.execute_query(
+            "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS require_password_change BOOLEAN DEFAULT FALSE;",
+            commit=True,
+        )
 
         print("Estruturas de dados criadas ou verificadas no PostgreSQL.")
 
