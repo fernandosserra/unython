@@ -324,9 +324,10 @@ class DatabaseManager:
                     ALTER TABLE vendas DROP CONSTRAINT vendas_id_pessoa_fkey;
                 END IF;
 
-                ALTER TABLE vendas
-                ADD CONSTRAINT IF NOT EXISTS vendas_id_pessoa_fkey
-                FOREIGN KEY (id_pessoa) REFERENCES usuarios(id);
+                PERFORM 1 FROM pg_constraint WHERE conname = 'vendas_id_pessoa_fkey';
+                IF NOT FOUND THEN
+                    EXECUTE 'ALTER TABLE vendas ADD CONSTRAINT vendas_id_pessoa_fkey FOREIGN KEY (id_pessoa) REFERENCES usuarios(id)';
+                END IF;
             END$$;
             """,
             commit=True,

@@ -15,6 +15,7 @@ from modules.movimentos import movimentos_page
 from modules.catalogo import catalogo_page
 from modules.estoque import estoque_page
 from modules.produtos import produtos_page
+from modules.usuarios import usuarios_page
 from modules.vendas import vendas_page
 
 
@@ -35,7 +36,7 @@ def main_app():
     # Painel lateral
     st.sidebar.title("Unython")
     st.sidebar.markdown(f"**Usuário ID:** {st.session_state['user_id']}")
-    st.sidebar.button("Voltar para Home", on_click=lambda: set_page("Home"), use_container_width=True)
+    st.sidebar.button("Home", on_click=lambda: set_page("Home"), use_container_width=True)
     st.sidebar.button("Alterar senha", on_click=lambda: set_page("ChangePassword"), use_container_width=True)
     role = st.session_state.get("user_role", "") or ""
     if role.lower() == "administrador":
@@ -43,6 +44,7 @@ def main_app():
         st.sidebar.button("Movimentos", on_click=lambda: set_page("Movimentos"), use_container_width=True)
         st.sidebar.button("Produtos", on_click=lambda: set_page("Produtos"), use_container_width=True)
         st.sidebar.button("Estoque", on_click=lambda: set_page("Estoque"), use_container_width=True)
+        st.sidebar.button("Usuários", on_click=lambda: set_page("Usuarios"), use_container_width=True)
     st.sidebar.button("Sair", on_click=logout, use_container_width=True)
     st.sidebar.markdown("---")
 
@@ -65,6 +67,8 @@ def main_app():
         estoque_page(API_BASE_URL)
     elif st.session_state["page"] == "Produtos":
         produtos_page(API_BASE_URL)
+    elif st.session_state["page"] == "Usuarios":
+        usuarios_page(API_BASE_URL)
     # ... outros módulos
 
 
