@@ -91,7 +91,7 @@ def home_page(set_page_func):
     st.title("Central de Gerenciamento")
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("Registrar Venda", key="btn_vendas", help="Lançamento de vendas e checagem de estoque.", use_container_width=True):
+        if st.button("Caixa/Vendas", key="btn_vendas", help="Lançamento de vendas e checagem de estoque.", use_container_width=True):
             set_page_func('Vendas')
     with col2:
         if st.button("Ver Relatórios", key="btn_relat", help="Verificar lucro, faturamento e saldo de caixa.", use_container_width=True):
