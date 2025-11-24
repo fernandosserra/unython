@@ -12,6 +12,15 @@ def estoque_page(api_base_url: str):
         return
     headers = {"Authorization": f"Bearer {auth_token}"}
 
+    # Evento aberto
+    evento_resp = requests.get(f"{api_base_url}/eventos/aberto", headers=headers)
+    evento = evento_resp.json() if evento_resp.status_code == 200 else None
+    if not evento:
+        st.warning("Nenhum evento/dia aberto. Abra em Movimentos antes de registrar estoque.")
+        return
+    evento_id = evento.get("id")
+    st.info(f"Evento ativo: {evento.get('nome')} (ID {evento_id})")
+
     itens_resp = requests.get(f"{api_base_url}/catalogo/itens", headers=headers)
     itens = itens_resp.json() if itens_resp.status_code == 200 else []
     item_options = {f"{i.get('id')} - {i.get('nome')}": i.get("id") for i in itens}
@@ -21,7 +30,6 @@ def estoque_page(api_base_url: str):
     tipo_mov = st.selectbox("Tipo de movimento", ["Entrada", "Saida"])
     quantidade = st.number_input("Quantidade", min_value=1, value=1, step=1)
     origem = st.text_input("Origem/Observação", value="Ajuste")
-    evento_id = st.number_input("ID do evento/dia", min_value=1, value=1, step=1)
 
     if st.button("Registrar movimento de estoque", use_container_width=True):
         if not selected_item:
