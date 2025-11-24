@@ -313,7 +313,18 @@ class DatabaseManager:
             commit=True,
         )
         self.execute_query(
-            "ALTER TABLE movimentos_caixa ADD CONSTRAINT IF NOT EXISTS fk_movimento_evento FOREIGN KEY (id_evento) REFERENCES eventos(id);",
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint WHERE conname = 'fk_movimento_evento'
+                ) THEN
+                    ALTER TABLE movimentos_caixa
+                        ADD CONSTRAINT fk_movimento_evento
+                        FOREIGN KEY (id_evento) REFERENCES eventos(id);
+                END IF;
+            END$$;
+            """,
             commit=True,
         )
 
