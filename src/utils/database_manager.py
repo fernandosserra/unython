@@ -221,7 +221,7 @@ class DatabaseManager:
             id_evento INTEGER NOT NULL,
             responsavel VARCHAR(255),
             id_movimento_caixa INTEGER NOT NULL,
-            FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
+            FOREIGN KEY (id_pessoa) REFERENCES usuarios(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id),
             FOREIGN KEY (id_movimento_caixa) REFERENCES movimentos_caixa(id)
         );
@@ -306,6 +306,29 @@ class DatabaseManager:
         # Ajuste para bases já existentes: adiciona coluna se não existir
         self.execute_query(
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS require_password_change BOOLEAN DEFAULT FALSE;",
+            commit=True,
+        )
+        # Ajuste FK de vendas.id_pessoa -> usuarios.id
+        self.execute_query(
+            """
+            DO $$
+            DECLARE
+                exists_fk BOOLEAN;
+            BEGIN
+                SELECT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'vendas_id_pessoa_fkey'
+                ) INTO exists_fk;
+
+                IF exists_fk THEN
+                    ALTER TABLE vendas DROP CONSTRAINT vendas_id_pessoa_fkey;
+                END IF;
+
+                ALTER TABLE vendas
+                ADD CONSTRAINT IF NOT EXISTS vendas_id_pessoa_fkey
+                FOREIGN KEY (id_pessoa) REFERENCES usuarios(id);
+            END$$;
+            """,
             commit=True,
         )
         self.execute_query(
