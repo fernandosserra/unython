@@ -14,6 +14,7 @@ from modules.caixas import caixas_page
 from modules.movimentos import movimentos_page
 from modules.catalogo import catalogo_page
 from modules.estoque import estoque_page
+from modules.produtos import produtos_page
 from modules.vendas import vendas_page
 
 
@@ -40,6 +41,8 @@ def main_app():
     if role.lower() == "administrador":
         st.sidebar.button("Gestão de Caixas", on_click=lambda: set_page("Caixas"), use_container_width=True)
         st.sidebar.button("Movimentos", on_click=lambda: set_page("Movimentos"), use_container_width=True)
+        st.sidebar.button("Produtos", on_click=lambda: set_page("Produtos"), use_container_width=True)
+        st.sidebar.button("Estoque", on_click=lambda: set_page("Estoque"), use_container_width=True)
     st.sidebar.button("Sair", on_click=logout, use_container_width=True)
     st.sidebar.markdown("---")
 
@@ -60,6 +63,8 @@ def main_app():
         catalogo_page(API_BASE_URL)
     elif st.session_state["page"] == "Estoque":
         estoque_page(API_BASE_URL)
+    elif st.session_state["page"] == "Produtos":
+        produtos_page(API_BASE_URL)
     # ... outros módulos
 
 

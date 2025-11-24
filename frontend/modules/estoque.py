@@ -1,4 +1,4 @@
-import streamlit as st
+﻿import streamlit as st
 import requests
 from utils.components import API_BASE_URL
 
@@ -24,8 +24,12 @@ def estoque_page(api_base_url: str):
     itens_resp = requests.get(f"{api_base_url}/catalogo/itens", headers=headers)
     itens = itens_resp.json() if itens_resp.status_code == 200 else []
     item_options = {f"{i.get('id')} - {i.get('nome')}": i.get("id") for i in itens}
-    selected_label = st.selectbox("Selecione o item", list(item_options.keys())) if item_options else None
-    selected_item = item_options.get(selected_label) if selected_label else None
+    if itens:
+        selected_label = st.selectbox("Selecione o item", list(item_options.keys()))
+        selected_item = item_options.get(selected_label)
+    else:
+        st.warning("Nenhum item cadastrado. Cadastre produtos primeiro.")
+        selected_item = None
 
     tipo_mov = st.selectbox("Tipo de movimento", ["Entrada", "Saida"])
     quantidade = st.number_input("Quantidade", min_value=1, value=1, step=1)
