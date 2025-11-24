@@ -1,3 +1,7 @@
+# Unython - (C) 2025 fsserra@gmail.com
+# Este programa e software livre: voce pode redistribui-lo e/ou modifica-lo
+# sob os termos da GNU General Public License como publicada pela Free Software Foundation,
+# na versao 3 da Licenca, ou (a seu criterio) qualquer versao posterior.
 # src/modules/caixas.py
 from typing import List, Optional
 from decimal import Decimal

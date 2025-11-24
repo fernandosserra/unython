@@ -1,3 +1,7 @@
+# Unython - (C) 2025 fsserra@gmail.com
+# Este programa e software livre: voce pode redistribui-lo e/ou modifica-lo
+# sob os termos da GNU General Public License como publicada pela Free Software Foundation,
+# na versao 3 da Licenca, ou (a seu criterio) qualquer versao posterior.
 """
 Ponto de orquestração em desenvolvimento: sobe API (FastAPI/Uvicorn) e
 Interface (Streamlit). Use as flags para escolher qual serviço iniciar.
@@ -10,7 +14,6 @@ Exemplos:
 
 import argparse
 import os
-import signal
 import subprocess
 import sys
 import time

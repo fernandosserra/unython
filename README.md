@@ -79,3 +79,6 @@ streamlit run frontend/interface.py --server.port 8501 --server.headless true
 - Relatórios para administradores.
 - Relatórios de fechamento de caixa.
 - Relatórios de estoque na interface.
+
+## Licença
+Este projeto é licenciado sob GPL-3.0. Veja `LICENSE` para detalhes. Contato do desenvolvedor: fsserra@gmail.com.
