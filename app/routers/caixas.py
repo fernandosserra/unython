@@ -35,9 +35,9 @@ def movimento_ativo(caixa_id: int, db: DBDependency):
 
 
 @router.post("/{caixa_id}/abrir", status_code=status.HTTP_201_CREATED)
-def abrir_movimento(caixa_id: int, usuario_id: int, valor_abertura: Decimal, db: DBDependency):
+def abrir_movimento(caixa_id: int, usuario_id: int, valor_abertura: Decimal, id_evento: Optional[int] = None, db: DBDependency = None):
     service = CaixaService(db)
-    mid = service.abrir_movimento(caixa_id, usuario_id, valor_abertura)
+    mid = service.abrir_movimento(caixa_id, usuario_id, valor_abertura, id_evento)
     if not mid:
         raise HTTPException(status_code=400, detail="Nao foi possivel abrir movimento.")
     return {"movimento_id": mid}

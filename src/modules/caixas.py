@@ -51,7 +51,7 @@ class CaixaService:
     # 2. Gestão de Movimento de Caixa (Abertura/Fechamento)
     # -----------------------------------------------------------
 
-    def abrir_movimento(self, id_caixa: int, id_usuario_abertura: int, valor_abertura: Decimal) -> Optional[int]:
+    def abrir_movimento(self, id_caixa: int, id_usuario_abertura: int, valor_abertura: Decimal, id_evento: Optional[int] = None) -> Optional[int]:
         """
         Abre uma nova sessão de Movimento de Caixa.
         Só permite abertura se não houver outro movimento ABERTO para o mesmo Caixa.
@@ -63,12 +63,12 @@ class CaixaService:
 
         query = """
         INSERT INTO movimentos_caixa 
-            (id_caixa, id_usuario_abertura, valor_abertura, status) 
+            (id_caixa, id_usuario_abertura, valor_abertura, status, id_evento) 
         VALUES 
-            (%s, %s, %s, 'Aberto') 
+            (%s, %s, %s, 'Aberto', %s) 
         RETURNING id
         """
-        params = (id_caixa, id_usuario_abertura, valor_abertura)
+        params = (id_caixa, id_usuario_abertura, valor_abertura, id_evento)
         return self.db.execute_query(query, params, commit=True)
 
     def fechar_movimento(self, id_movimento: int) -> bool:

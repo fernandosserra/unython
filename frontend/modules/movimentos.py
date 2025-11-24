@@ -1,6 +1,5 @@
 ﻿import streamlit as st
 import requests
-from decimal import Decimal
 from utils.components import API_BASE_URL
 
 
@@ -30,7 +29,7 @@ def movimentos_page(api_base_url: str):
         mov = mov_resp.json()
         st.success(f"Movimento ABERTO ID {mov.get('id')} - Valor abertura: {mov.get('valor_abertura')}")
         if st.button("Fechar movimento", use_container_width=True):
-            close_resp = requests.post(f"{api_base_url}/{mov.get('id')}/fechar", headers=headers)
+            close_resp = requests.post(f"{api_base_url}/caixas/{mov.get('id')}/fechar", headers=headers)
             if close_resp.status_code == 200:
                 st.success("Movimento fechado.")
             else:
@@ -38,13 +37,19 @@ def movimentos_page(api_base_url: str):
     else:
         st.warning("Nenhum movimento aberto.")
         valor = st.number_input("Valor de abertura", min_value=0.0, value=0.0, step=10.0)
+        evento_id = st.number_input("ID do evento/dia (opcional)", min_value=0, value=0, step=1)
+        evento_param = evento_id if evento_id > 0 else None
         if st.button("Abrir movimento", use_container_width=True):
+            params = {"usuario_id": user_id, "valor_abertura": valor}
+            if evento_param:
+                params["id_evento"] = evento_param
             open_resp = requests.post(
                 f"{api_base_url}/caixas/{selected_caixa}/abrir",
                 headers=headers,
-                params={"usuario_id": user_id, "valor_abertura": valor},
+                params=params,
             )
             if open_resp.status_code in (200, 201):
                 st.success("Movimento aberto.")
+                st.rerun()
             else:
                 st.error("Falha ao abrir movimento.")

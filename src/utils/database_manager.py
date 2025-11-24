@@ -269,12 +269,14 @@ class DatabaseManager:
             id SERIAL PRIMARY KEY,
             id_caixa INT NOT NULL,
             id_usuario_abertura INT NOT NULL,
+            id_evento INT,
             valor_abertura NUMERIC(10, 2) NOT NULL DEFAULT 0.00,
             status VARCHAR(50) NOT NULL DEFAULT 'Aberto',
             data_abertura TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
             data_fechamento TIMESTAMP WITHOUT TIME ZONE,
             FOREIGN KEY (id_caixa) REFERENCES caixas(id),
-            FOREIGN KEY (id_usuario_abertura) REFERENCES usuarios(id)
+            FOREIGN KEY (id_usuario_abertura) REFERENCES usuarios(id),
+            FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
 
@@ -304,6 +306,14 @@ class DatabaseManager:
         # Ajuste para bases já existentes: adiciona coluna se não existir
         self.execute_query(
             "ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS require_password_change BOOLEAN DEFAULT FALSE;",
+            commit=True,
+        )
+        self.execute_query(
+            "ALTER TABLE movimentos_caixa ADD COLUMN IF NOT EXISTS id_evento INT NULL;",
+            commit=True,
+        )
+        self.execute_query(
+            "ALTER TABLE movimentos_caixa ADD CONSTRAINT IF NOT EXISTS fk_movimento_evento FOREIGN KEY (id_evento) REFERENCES eventos(id);",
             commit=True,
         )
 
