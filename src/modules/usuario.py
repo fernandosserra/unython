@@ -74,6 +74,11 @@ class UsuarioService:
         params = (usuario_id,)
         return self.db.execute_query(query, params, commit=True)
 
+    def atualizar_role_status(self, usuario_id: int, role: str, status: str = "Ativo", funcao: Optional[str] = None) -> bool:
+        """Atualiza role/status/funcao sem alterar senha."""
+        query = "UPDATE usuarios SET role = %s, status = %s, funcao = %s WHERE id = %s"
+        params = (role, status, funcao, usuario_id)
+        return self.db.execute_query(query, params, commit=True)
     def alterar_senha(self, email: str, old_password: str, new_password: str) -> bool:
         """Altera a senha se a senha atual confere e limpa o flag de troca obrigatoria."""
         usuario = self.buscar_usuario_por_email(email)

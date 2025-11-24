@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, status
 from typing import List
+from pydantic import BaseModel
 
 from src.utils.dependencies import DBDependency
 from src.modules.usuario import UsuarioService
@@ -22,3 +23,18 @@ def criar_usuario(usuario: Usuario, senha: str, require_password_change: bool = 
     if not uid:
         raise HTTPException(status_code=400, detail="Nao foi possivel criar/atualizar usuario.")
     return {"id": uid}
+
+
+class RoleUpdate(BaseModel):
+    role: str
+    status: str = "Ativo"
+    funcao: str | None = None
+
+
+@router.put("/{user_id}/role")
+def atualizar_role(user_id: int, payload: RoleUpdate, db: DBDependency):
+    service = UsuarioService(db)
+    ok = service.atualizar_role_status(user_id, payload.role, payload.status, payload.funcao or payload.role)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Nao foi possivel atualizar usuario.")
+    return {"id": user_id, "role": payload.role, "status": payload.status}
