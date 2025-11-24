@@ -89,6 +89,7 @@ def login_form(api_base_url):
 
 def home_page(set_page_func):
     st.title("Central de Gerenciamento")
+    role = (st.session_state.get('user_role') or "").lower()
     col1, col2, col3 = st.columns(3)
     with col1:
         if st.button("Caixa/Vendas", key="btn_vendas", help="Lançamento de vendas e checagem de estoque.", use_container_width=True):
@@ -97,8 +98,11 @@ def home_page(set_page_func):
         if st.button("Ver Relatórios", key="btn_relat", help="Verificar lucro, faturamento e saldo de caixa.", use_container_width=True):
             set_page_func('Relatorios')
     with col3:
-        if st.button("Gerenciar Estoque", key="btn_estoque", help="Entrada de produtos e ajuste de inventário.", use_container_width=True):
-            set_page_func('Estoque')
+        if role == "administrador":
+            if st.button("Gerenciar Estoque", key="btn_estoque", help="Entrada de produtos e ajuste de inventário.", use_container_width=True):
+                set_page_func('Estoque')
+        else:
+            st.write("")  # placeholder para manter alinhamento
 
     st.markdown("---")
     if st.button("Atendimento / Agendamentos", key="btn_agend_full", use_container_width=True):
