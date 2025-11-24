@@ -51,7 +51,8 @@ def post_sale(auth_token: str, user_id: int, movimento_id: int, evento_id: int):
         st.error("O carrinho está vazio.")
         return False
 
-    pessoa_id = st.session_state.get("pessoa_id")  # opcional; se não existir, deixa None
+    # Rastreio: usa o próprio usuário logado como pessoa (auditoria)
+    pessoa_id = user_id
 
     venda_payload = {
         "eventoId": evento_id,
