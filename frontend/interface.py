@@ -12,6 +12,8 @@ from utils.components import API_BASE_URL, set_page
 from modules.home import home_page, login_form, logout, change_password_page
 from modules.caixas import caixas_page
 from modules.movimentos import movimentos_page
+from modules.catalogo import catalogo_page
+from modules.estoque import estoque_page
 from modules.vendas import vendas_page
 
 
@@ -54,6 +56,10 @@ def main_app():
         caixas_page(API_BASE_URL)
     elif st.session_state["page"] == "Movimentos":
         movimentos_page(API_BASE_URL)
+    elif st.session_state["page"] == "Catalogo":
+        catalogo_page(API_BASE_URL)
+    elif st.session_state["page"] == "Estoque":
+        estoque_page(API_BASE_URL)
     # ... outros módulos
 
 
