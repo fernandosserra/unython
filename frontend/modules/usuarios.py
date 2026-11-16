@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import requests
 
 from utils.components import API_BASE_URL
@@ -32,11 +32,12 @@ def usuarios_page(api_base_url: str):
                 "funcao": funcao,
                 "role": cargo,
                 "status": "Ativo",
+                "senha": senha,
+                "require_password_change": require_change,
             }
             resp = requests.post(
                 f"{api_base_url}/usuarios/",
                 headers={**headers, "Content-Type": "application/json"},
-                params={"senha": senha, "require_password_change": require_change},
                 json=payload,
             )
             if resp.status_code in (200, 201):

@@ -249,3 +249,46 @@ def test_usuario_require_password_change(db_manager):
     fetched2 = usuario_srv.buscar_usuario_por_id(uid)
     assert fetched2 and not fetched2.require_password_change
     assert usuario_srv.verificar_credenciais(usuario.email, "new456")
+
+
+def test_fluxo_caixa_buscar_todos_movimentos(db_manager, seed_basico):
+    fluxo_srv = FluxoDeCaixaService(db_manager)
+    mov = MovimentoFinanceiro(
+        id_usuario=seed_basico["id_facilitador"],
+        tipo_movimento="Receita",
+        valor=Decimal("150.00"),
+        descricao="Entrada de teste",
+        categoria="Doacao",
+        id_evento=seed_basico["id_evento"],
+    )
+    fluxo_srv.registrar_movimento(mov)
+    movimentos = fluxo_srv.buscar_todos_movimentos()
+    assert len(movimentos) == 1
+    assert movimentos[0].valor == Decimal("150.00")
+
+
+def test_agendamento_presenca_confirmada(db_manager, seed_basico):
+    ag_srv = AgendamentoService(db_manager)
+    agendamento = Agendamento(
+        id_pessoa=seed_basico["id_pessoa"],
+        id_facilitador=seed_basico["id_facilitador"],
+        id_evento=seed_basico["id_evento"],
+        data_hora=datetime.now().replace(second=0, microsecond=0),
+        tipo_servico="Atendimento",
+    )
+    ag_id = ag_srv.registrar_agendamento(agendamento)
+    ag_srv.confirmar_comparecimento(ag_id, "Sim")
+
+    agendamentos = ag_srv.buscar_agendamentos(id_pessoa=seed_basico["id_pessoa"])
+    assert len(agendamentos) > 0
+    assert agendamentos[0].compareceu == "Sim"
+
+
+def test_jwt_security_token():
+    from src.utils.security import create_access_token, decode_access_token
+    token = create_access_token({"sub": "42", "user_id": 42, "role": "Administrador"})
+    payload = decode_access_token(token)
+    assert payload is not None
+    assert payload["user_id"] == 42
+    assert payload["role"] == "Administrador"
+

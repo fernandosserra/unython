@@ -1,14 +1,32 @@
+# API e Web Framework
 fastapi
-uvicorn[standard]  # Uvicorn com dependências extras de performance
+uvicorn[standard]
 pydantic
+python-multipart
+
+# Interface Streamlit e Cliente HTTP
+streamlit
+requests
+
+# Persistência e Banco de Dados
 psycopg2-binary
-toml 
-python-dotenv  # Útil para carregar variáveis de ambiente (PG_HOST, etc.)
-# Dependências do Google Drive:
+SQLAlchemy
+alembic
+
+# Segurança e Criptografia
+bcrypt
+pyjwt
+passlib
+
+# Configurações e Variáveis de Ambiente
+toml
+python-dotenv
+python-dateutil
+
+# Google Drive API (Backup)
 google-api-python-client
 google-auth-oauthlib
 google-auth-httplib2
-# Dependência de precisão numérica:
-python-multipart
-SQLAlchemy  # Adicionado como prevenção se você usar SQLAlchemy ORM no futuro (boas práticas)
-alembic     # Adicionado para migrações de banco de dados (boas práticas)
+
+# Testes e Qualidade
+pytest

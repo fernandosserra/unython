@@ -79,3 +79,60 @@ def get_relatorio_gerencial(
     
     # ... Lógica de geração do relatório
     return {"status": "ok", "dados": "Relatório Confidencial Gerencial"}
+
+
+
+# ------------------------------------------------------------------
+# 4. ENDPOINT: INVENTÁRIO / RELATÓRIO DE ESTOQUE
+# ------------------------------------------------------------------
+
+@router.get("/inventario", response_model=List[InventarioResponse], status_code=status.HTTP_200_OK)
+def get_inventario(db: DBDependency):
+    """
+    Retorna o inventário consolidado: cada item do catálogo com seu saldo atual,
+    custo total em estoque e valor de venda unitário.
+    """
+    query = """
+    SELECT 
+        i.id,
+        i.nome,
+        COALESCE(
+            SUM(CASE WHEN e.tipo_movimento = 'Entrada' THEN e.quantidade ELSE -e.quantidade END),
+            0
+        ) AS saldo_atual,
+        i.valor_compra * COALESCE(
+            SUM(CASE WHEN e.tipo_movimento = 'Entrada' THEN e.quantidade ELSE -e.quantidade END),
+            0
+        ) AS custo_total_estoque,
+        i.valor_venda
+    FROM 
+        itens i
+    LEFT JOIN 
+        estoque e ON e.id_item = i.id
+    WHERE 
+        i.status = 'Ativo'
+    GROUP BY 
+        i.id, i.nome, i.valor_compra, i.valor_venda
+    ORDER BY 
+        i.nome ASC
+    """
+    
+    try:
+        columns, results = db.execute_query(query, fetch_all=True)
+        if not results:
+            return []
+        
+        inventario = []
+        for row in results:
+            data = dict(zip(columns, row))
+            inventario.append(InventarioResponse(
+                id=data['id'],
+                nome=data['nome'],
+                saldo_atual=int(data.get('saldo_atual', 0) or 0),
+                custo_total_estoque=Decimal(str(data.get('custo_total_estoque', 0) or 0)),
+                valor_venda=Decimal(str(data.get('valor_venda', 0) or 0)),
+            ))
+        return inventario
+    except Exception as e:
+        print(f"Erro ao gerar inventário: {e}")
+        return []

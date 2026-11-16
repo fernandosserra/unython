@@ -70,9 +70,12 @@ class ItemService:
             return Item(**dict(zip(columns, data)))
         return None
     
-    def buscar_todos_itens(self) -> List[Item]:
+    def buscar_todos_itens(self, apenas_ativos: bool = False) -> List[Item]:
         """Busca todos os itens e os converte em objetos Item."""
         query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria FROM itens"
+        if apenas_ativos:
+            query += " WHERE status = 'Ativo'"
+        query += " ORDER BY nome"
         columns, results = self.db.execute_query(query, fetch_all=True)
         if results:
             return [Item(**dict(zip(columns, row))) for row in results]

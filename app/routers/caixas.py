@@ -1,10 +1,11 @@
-﻿from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from typing import List, Optional
 from decimal import Decimal
 
 from src.utils.dependencies import DBDependency
 from src.modules.caixas import CaixaService
 from src.utils.models import Caixa
+from src.utils.schemas import CaixaAbrirRequest
 
 router = APIRouter(prefix="/caixas", tags=["Caixas"])
 
@@ -21,7 +22,7 @@ def criar_caixa(caixa: Caixa, db: DBDependency):
     service = CaixaService(db)
     cid = service.registrar_caixa(caixa)
     if not cid:
-        raise HTTPException(status_code=400, detail="Nao foi possivel criar o caixa.")
+        raise HTTPException(status_code=400, detail="Não foi possível criar o caixa.")
     return {"id": cid}
 
 
@@ -35,18 +36,34 @@ def movimento_ativo(caixa_id: int, db: DBDependency):
 
 
 @router.post("/{caixa_id}/abrir", status_code=status.HTTP_201_CREATED)
-def abrir_movimento(caixa_id: int, usuario_id: int, valor_abertura: Decimal, id_evento: Optional[int] = None, db: DBDependency = None):
+def abrir_movimento(
+    caixa_id: int,
+    db: DBDependency,
+    payload: Optional[CaixaAbrirRequest] = None,
+    usuario_id: Optional[int] = None,
+    valor_abertura: Optional[Decimal] = None,
+    id_evento: Optional[int] = None,
+):
+    """Abre uma nova sessão de movimento de caixa, aceitando corpo JSON ou parâmetros de consulta."""
     service = CaixaService(db)
-    if id_evento is None:
+    uid = payload.usuario_id if payload else usuario_id
+    val = payload.valor_abertura if payload else (valor_abertura or Decimal("0.00"))
+    ev_id = payload.id_evento if payload else id_evento
+
+    if uid is None:
+        raise HTTPException(status_code=400, detail="usuario_id é obrigatório.")
+
+    if ev_id is None:
         from src.modules.evento import EventoService
         evs = EventoService(db)
         ev = evs.buscar_evento_aberto()
         if not ev:
             raise HTTPException(status_code=400, detail="Nenhum evento aberto. Abra um evento antes.")
-        id_evento = ev.id
-    mid = service.abrir_movimento(caixa_id, usuario_id, valor_abertura, id_evento)
+        ev_id = ev.id
+
+    mid = service.abrir_movimento(caixa_id, uid, val, ev_id)
     if not mid:
-        raise HTTPException(status_code=400, detail="Nao foi possivel abrir movimento (ja existe aberto?).")
+        raise HTTPException(status_code=400, detail="Não foi possível abrir movimento (já existe aberto?).")
     return {"movimento_id": mid}
 
 
@@ -55,5 +72,5 @@ def fechar_movimento(movimento_id: int, db: DBDependency):
     service = CaixaService(db)
     ok = service.fechar_movimento(movimento_id)
     if not ok:
-        raise HTTPException(status_code=400, detail="Nao foi possivel fechar movimento.")
+        raise HTTPException(status_code=400, detail="Não foi possível fechar movimento.")
     return {"status": "fechado"}

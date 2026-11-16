@@ -76,7 +76,7 @@ class VendaService:
                         quantidade=item_venda.quantidade,
                         tipo_movimento="Saida",
                         origem_recurso="Venda",
-                        id_usuario=int(venda_cabecalho.responsavel),
+                        id_usuario=int(venda_cabecalho.responsavel) if str(venda_cabecalho.responsavel).isdigit() else None,
                         id_evento=venda_cabecalho.id_evento,
                     )
                 )

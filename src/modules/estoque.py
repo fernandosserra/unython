@@ -67,7 +67,7 @@ class EstoqueService:
         movimento = MovimentoEstoque(
             id_item=id_item, 
             quantidade=quantidade, 
-            tipo_movimento='Saída', 
+            tipo_movimento='Saida', 
             origem_recurso='Consumo Interno', # Saídas que não são vendas
             id_usuario=id_usuario,
             id_evento=id_evento

@@ -1,21 +1,14 @@
-﻿# app/routers/auth.py
+# app/routers/auth.py
 
 from fastapi import APIRouter, Depends, status, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Annotated
-import sys
-import os
 
-# Adiciona o diretório 'src'
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
-# Importa Services e Schemas
 from src.utils.dependencies import DBDependency
 from src.modules.usuario import UsuarioService
 from src.utils.schemas import Token, LoginRequest, ChangePasswordRequest
-from src.utils.models import Usuario
+from src.utils.security import create_access_token
 
-# Cria o Router
 router = APIRouter(
     tags=["Autenticacao (Login)"]
 )
@@ -30,7 +23,7 @@ async def login_for_access_token(
     db: DBDependency
 ):
     """
-    Verifica as credenciais (email/senha) e retorna um token JWT (simulado).
+    Verifica as credenciais (email/senha) e retorna um token JWT assinado.
     """
     usuario_service = UsuarioService(db)
     usuario = usuario_service.verificar_credenciais(form_data.username, form_data.password)
@@ -38,12 +31,19 @@ async def login_for_access_token(
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais invalidas ou e-mail nao encontrado.",
+            detail="Credenciais inválidas ou e-mail não encontrado.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
+    token = create_access_token({
+        "sub": str(usuario.id),
+        "user_id": usuario.id,
+        "email": usuario.email,
+        "role": usuario.role,
+    })
+
     return {
-        "access_token": f"access-token-para-usuario-{usuario.id}",
+        "access_token": token,
         "token_type": "bearer",
         "user_id": usuario.id,
         "role": usuario.role,
@@ -53,12 +53,12 @@ async def login_for_access_token(
 
 @router.post("/change-password")
 async def change_password(payload: ChangePasswordRequest, db: DBDependency):
-    """Altera a senha do usuario e limpa o flag de troca obrigatoria."""
+    """Altera a senha do usuário e limpa o flag de troca obrigatória."""
     usuario_service = UsuarioService(db)
     ok = usuario_service.alterar_senha(payload.email, payload.old_password, payload.new_password)
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Senha atual invalida ou usuario inexistente.",
+            detail="Senha atual inválida ou usuário inexistente.",
         )
     return {"status": "ok"}

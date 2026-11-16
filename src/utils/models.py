@@ -10,9 +10,23 @@ from typing import Optional
 
 
 @dataclass
+class OrganizacaoConfig:
+    nome_organizacao: str = "Terreiro Caboclo Pena Branca"
+    tipo_organizacao: str = "Terreiro de Umbanda / Centro Espírita"
+    termo_assistido: str = "Consulente"
+    termo_assistido_plural: str = "Consulentes"
+    termo_atendente: str = "Médium / Cambone"
+    termo_servico: str = "Passe / Consulta"
+    id: Optional[int] = 1
+
+
+@dataclass
 class Pessoa:
     nome: str
     telefone: Optional[str] = None
+    documento: Optional[str] = None
+    preferencial: bool = False
+    observacoes: Optional[str] = None
     data_cadastro: date = field(default_factory=lambda: datetime.now().date())
     id: Optional[int] = None
 
@@ -36,6 +50,7 @@ class Item:
     valor_venda: Decimal
     id_categoria: Optional[int] = None
     status: str = "Ativo"
+    estoque_minimo: int = 0
     id: Optional[int] = None
 
 
@@ -77,8 +92,12 @@ class Agendamento:
     id_evento: int
     id_facilitador: Optional[int] = None
     data_hora: datetime = field(default_factory=datetime.now)
-    status: str = "Agendado"
+    status: str = "Aguardando"  # 'Aguardando', 'Chamado', 'Atendido', 'Ausente'
     compareceu: str = "Pendente"  # 'Pendente', 'Sim', 'Nao'
+    numero_senha: Optional[str] = None
+    preferencial: bool = False
+    ordem_chegada: int = 1
+    observacoes: Optional[str] = None
     id: Optional[int] = None
 
 
@@ -137,4 +156,5 @@ class MovimentoCaixa:
     status: str = "Aberto"  # 'Aberto', 'Fechado'
     data_abertura: datetime = field(default_factory=datetime.now)
     data_fechamento: Optional[datetime] = None
+    id_evento: Optional[int] = None
     id: Optional[int] = None

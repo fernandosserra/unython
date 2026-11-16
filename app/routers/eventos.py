@@ -18,11 +18,46 @@ def evento_aberto(db: DBDependency):
     return ev.__dict__
 
 
+@router.get("/ativos-e-futuros")
+def listar_eventos_ativos_e_futuros(db: DBDependency):
+    """Retorna eventos abertos e agendados com antecedência."""
+    service = EventoService(db)
+    evs = service.buscar_eventos_futuros_ou_abertos()
+    return [e.__dict__ for e in evs]
+
+
 @router.get("/")
 def listar_eventos(db: DBDependency, data_inicio: Optional[date] = None, data_fim: Optional[date] = None) -> List[dict]:
     service = EventoService(db)
     eventos = service.buscar_eventos(data_inicio, data_fim)
     return [e.__dict__ for e in eventos]
+
+
+@router.post("/novo", status_code=status.HTTP_201_CREATED)
+def criar_evento_agendado(
+    nome: str,
+    data_evento: date,
+    tipo: str = "Gira / Culto / Atendimento",
+    status: str = "Agendado",
+    db: DBDependency = None,
+):
+    """Cria um evento futuro com antecedência (ex: Gira de Marinheiro na próxima sexta)."""
+    service = EventoService(db)
+    ev = Evento(nome=nome, data_evento=data_evento, tipo=tipo, status=status)
+    ev_id = service.registrar_evento(ev)
+    if not ev_id:
+        raise HTTPException(status_code=400, detail="Não foi possível criar o evento.")
+    return {"id": ev_id, "nome": nome, "data_evento": str(data_evento), "tipo": tipo, "status": status}
+
+
+@router.post("/{evento_id}/iniciar")
+def iniciar_evento_agendado(evento_id: int, db: DBDependency):
+    """Inicia / abre um evento que havia sido agendado previamente."""
+    service = EventoService(db)
+    ok = service.abrir_evento_existente(evento_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Não foi possível iniciar o evento.")
+    return {"status": "Aberto", "id": evento_id}
 
 
 @router.post("/abrir", status_code=status.HTTP_201_CREATED)

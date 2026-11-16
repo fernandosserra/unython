@@ -83,7 +83,7 @@ class CaixaService:
     def buscar_movimento_ativo(self, id_caixa: int) -> Optional[MovimentoCaixa]:
         """Busca o movimento ATIVO para um Caixa específico."""
         query = """
-        SELECT id, id_caixa, id_usuario_abertura, valor_abertura, status, data_abertura, data_fechamento 
+        SELECT id, id_caixa, id_usuario_abertura, valor_abertura, status, data_abertura, data_fechamento, id_evento 
         FROM movimentos_caixa 
         WHERE id_caixa = %s AND status = 'Aberto' 
         ORDER BY data_abertura DESC 

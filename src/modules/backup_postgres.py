@@ -25,7 +25,9 @@ def fazer_backup_google_drive_postgres(db_path: str):
     # 1. Definição de Nomes e Caminhos Temporários
     backup_filename = f"unython_postgres_dump_{datetime.now().strftime('%Y%m%d')}.sql"
     # Salva o arquivo de dump temporariamente na pasta 'data' (irmã de 'src')
-    TEMP_BACKUP_PATH = os.path.join(os.path.dirname(db_path), backup_filename)
+    target_dir = os.path.dirname(db_path) if db_path and os.path.dirname(db_path) else "data"
+    os.makedirs(target_dir, exist_ok=True)
+    TEMP_BACKUP_PATH = os.path.join(target_dir, backup_filename)
     
     # Obter credenciais do secrets.toml via DB_CONFIG
     PG_USER = DB_CONFIG['user']

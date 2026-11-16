@@ -63,5 +63,5 @@ class FluxoDeCaixaService:
     def buscar_todos_movimentos(self) -> List[MovimentoFinanceiro]:
         """Busca e retorna todos os movimentos financeiros ativos."""
         query = "SELECT * FROM movimentos_financeiros WHERE status = 'Ativo' ORDER BY data_registro DESC"
-        columns, results = self.db.execute_query(query)
+        columns, results = self.db.execute_query(query, fetch_all=True)
         return self._transmutar_movimento(columns, results)

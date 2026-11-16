@@ -24,9 +24,31 @@ class EventoService:
             return Evento(**dict(zip(columns, result)))
         return None
 
+    def abrir_evento_existente(self, id_evento: int) -> bool:
+        """Abre um evento previamente agendado, garantindo que seja o evento ativo."""
+        # Fecha qualquer outro que esteja aberto
+        self.db.execute_query("UPDATE eventos SET status = 'Fechado' WHERE status = 'Aberto'", commit=True)
+        query = "UPDATE eventos SET status = 'Aberto' WHERE id = %s"
+        return bool(self.db.execute_query(query, (id_evento,), commit=True))
+
     def fechar_evento(self, id_evento: int) -> bool:
         query = "UPDATE eventos SET status = 'Fechado' WHERE id = %s"
         return self.db.execute_query(query, (id_evento,), commit=True)
+
+    def buscar_eventos_futuros_ou_abertos(self) -> List[Evento]:
+        """Busca eventos abertos ou agendados para o futuro."""
+        query = """
+            SELECT id, nome, data_evento, tipo, status 
+            FROM eventos 
+            WHERE status IN ('Aberto', 'Agendado') 
+            ORDER BY 
+                CASE WHEN status = 'Aberto' THEN 0 ELSE 1 END,
+                data_evento ASC, id ASC
+        """
+        columns, results = self.db.execute_query(query, fetch_all=True)
+        if results:
+            return [Evento(**dict(zip(columns, row))) for row in results]
+        return []
 
     def buscar_eventos(self, data_inicio: Optional[date] = None, data_fim: Optional[date] = None) -> List[Evento]:
         base = "SELECT id, nome, data_evento, tipo, status FROM eventos"

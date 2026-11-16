@@ -1,10 +1,11 @@
 # .gitignore - Protocolo de Camuflagem Genial
 
-# 1. ARTEFATOS DE AMBIENTE VIRTUAL (VENV)
-# Essencial: Não envie o ambiente virtual!
+# 1. ARTEFATOS DE AMBIENTE VIRTUAL (VENV) E NODE
 /venv/
 .venv/
 /env/
+node_modules/
+**/node_modules/
 
 # 2. ARTEFATOS DE SEGURANÇA
 config/credentials.json
@@ -13,14 +14,13 @@ config/secrets.toml
 config/secrets.local.toml
 
 # 3. ARTEFATOS DE DADOS E CACHE
-# O banco de dados e os caches gerados pelo Python e pelo VS Code
-/data/*.db             # O arquivo unython.db (O próprio banco de dados)
+/data/*.db
 /data/*.sqlite
-__pycache__/           # Cache de compilação de Python (não é código fonte)
+__pycache__/
 **/__pycache__/
 .pytest_cache/
-.vscode/               # Configurações locais do VSCode (se houver, evite conflitos)
-.idea/                 # Configurações do PyCharm/IntelliJ (se houver)
+.vscode/
+.idea/
 
 # 4. Logs e Executáveis
 *.log

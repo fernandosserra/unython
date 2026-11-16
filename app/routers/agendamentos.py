@@ -1,68 +1,250 @@
 # app/routers/agendamentos.py
 
 from fastapi import APIRouter, Depends, status, HTTPException
-from typing import List
-import sys
-import os
+from typing import List, Optional
 from datetime import datetime
 
-# Adiciona o diretório 'src' para imports modulares
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
-
-# Importa Services e Schemas
 from src.utils.dependencies import DBDependency
 from src.modules.agendamento import AgendamentoService
+from src.modules.pessoa import PessoaService
 from src.modules.relatorio import RelatorioService
-from src.utils.schemas import AgendamentoUpdateStatus
-
-# Cria o Router
-router = APIRouter(
-    prefix="/agendamentos",
-    tags=["Logística e Atendimento (Agendamentos)"]
+from src.utils.models import Pessoa
+from src.utils.schemas import (
+    AgendamentoUpdateStatus,
+    AgendamentoStatusUpdateRequest,
+    AcolhimentoCreateRequest,
+    AgendamentoFilaItem,
 )
 
-# ------------------------------------------------------------------
-# ENDPOINT: LISTAR AGENDAMENTOS PENDENTES
-# ------------------------------------------------------------------
-
-@router.get("/pendentes", status_code=status.HTTP_200_OK)
-def listar_agendamentos_pendentes_detalhado(db: DBDependency):
-    """
-    Lista todos os agendamentos pendentes com detalhes de NOME (usando lógica de JOIN do RelatorioService).
-    """
-    relatorio_service = RelatorioService(db)
-    
-    # Chama a função de relatório que já faz o JOIN com Pessoa e Usuario
-    agendamentos_detalhado = relatorio_service.gerar_detalhe_agendamentos_pendentes()
-    
-    if not agendamentos_detalhado:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhum agendamento pendente encontrado.")
-        
-    # Os dados já vêm como List[Dict] formatada para o JSON
-    return agendamentos_detalhado
+router = APIRouter(
+    prefix="/agendamentos",
+    tags=["Logística, Acolhimento e Atendimentos"]
+)
 
 
-@router.patch("/{id_agendamento}/confirmar", status_code=status.HTTP_200_OK)
-def confirmar_presenca(id_agendamento: int, status_update: AgendamentoUpdateStatus, db: DBDependency):
+@router.get("/fila/{id_evento}", response_model=List[AgendamentoFilaItem])
+def listar_fila_do_evento(id_evento: int, db: DBDependency):
     """
-    Endpoint para o recepcionista confirmar a presença ('Sim' ou 'Não') do consulente.
+    Retorna a fila de acolhimento do evento ativo em ordem cronológica de chegada,
+    com distinção de fila Geral/Comum e Preferencial.
     """
+    service = AgendamentoService(db)
+    fila = service.listar_fila_evento(id_evento)
+    return [AgendamentoFilaItem(**item) for item in fila]
+
+
+@router.get("/pre-agendados/{id_evento}", response_model=List[AgendamentoFilaItem])
+def listar_pre_agendados_do_evento(id_evento: int, db: DBDependency):
+    """
+    Retorna a lista de pessoas pré-agendadas com antecedência para o evento,
+    que ainda não fizeram o Check-in no dia.
+    """
+    service = AgendamentoService(db)
+    lista = service.listar_pre_agendados(id_evento)
+    return [AgendamentoFilaItem(**item) for item in lista]
+
+
+@router.post("/pre-agendar", status_code=status.HTTP_201_CREATED)
+def agendar_com_antecedencia(payload: AcolhimentoCreateRequest, db: DBDependency):
+    """
+    Registra um agendamento com antecedência para um evento futuro.
+    A senha de atendimento será emitida no dia do evento quando o consulente fizer o Check-in.
+    """
+    pessoa_service = PessoaService(db)
     agendamento_service = AgendamentoService(db)
-    
-    # Chama o service para atualizar a coluna
-    sucesso = agendamento_service.confirmar_comparecimento(
-        id_agendamento, 
-        status_update.compareceu # Pydantic garante que seja 'Sim' ou 'Não'
+
+    id_pessoa = payload.id_pessoa
+    if not id_pessoa:
+        if not payload.nome:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Informe uma pessoa existente ou o nome para novo cadastro.",
+            )
+        nova_pessoa = Pessoa(
+            nome=payload.nome,
+            telefone=payload.telefone,
+            documento=payload.documento,
+            preferencial=payload.preferencial,
+            observacoes=payload.observacoes,
+        )
+        id_pessoa = pessoa_service.registrar_pessoa(nova_pessoa)
+        if not id_pessoa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Falha ao cadastrar pessoa.",
+            )
+
+    agendamento_id = agendamento_service.pre_agendar(
+        id_evento=payload.id_evento,
+        id_pessoa=id_pessoa,
+        preferencial=payload.preferencial,
+        tipo_servico=payload.tipo_servico or "Passe / Consulta",
+        id_facilitador=payload.id_facilitador,
+        observacoes=payload.observacoes,
     )
-    
+
+    if not agendamento_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível realizar o agendamento prévio.",
+        )
+
+    return {
+        "message": "Agendamento com antecedência realizado com sucesso!",
+        "id": agendamento_id,
+        "id_evento": payload.id_evento,
+        "id_pessoa": id_pessoa,
+        "status": "PreAgendado",
+    }
+
+
+@router.post("/{id_agendamento}/checkin", status_code=status.HTTP_200_OK)
+def realizar_checkin(id_agendamento: int, db: DBDependency):
+    """
+    Realiza o Check-in de uma pessoa pré-agendada no dia do evento:
+    Gera a senha sequencial da noite e insere na fila ativa de chamada.
+    """
+    service = AgendamentoService(db)
+    resultado = service.fazer_checkin(id_agendamento)
+    if not resultado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível realizar o check-in do agendamento.",
+        )
+    return {
+        "message": "Check-in realizado com sucesso! Senha emitida.",
+        **resultado,
+    }
+
+
+@router.post("/acolher", status_code=status.HTTP_201_CREATED)
+def acolher_pessoa_no_evento(payload: AcolhimentoCreateRequest, db: DBDependency):
+    """
+    Registra um acolhido na fila do evento.
+    Se for fornecido id_pessoa, utiliza a pessoa existente.
+    Se for fornecido nome, cadastra automaticamente a nova pessoa e a coloca na fila.
+    Gera senha sequencial cronológica (P-01 para preferencial, G-01 para comum).
+    """
+    pessoa_service = PessoaService(db)
+    agendamento_service = AgendamentoService(db)
+
+    id_pessoa = payload.id_pessoa
+
+    # Se não passou id_pessoa mas passou nome, cria a pessoa primeiro
+    if not id_pessoa:
+        if not payload.nome:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Informe uma pessoa existente ou o nome para novo cadastro.",
+            )
+        nova_pessoa = Pessoa(
+            nome=payload.nome,
+            telefone=payload.telefone,
+            documento=payload.documento,
+            preferencial=payload.preferencial,
+            observacoes=payload.observacoes,
+        )
+        id_pessoa = pessoa_service.registrar_pessoa(nova_pessoa)
+        if not id_pessoa:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Falha ao cadastrar pessoa.",
+            )
+
+    # Registra o acolhimento na fila do evento com senha gerada
+    resultado = agendamento_service.registrar_acolhimento(
+        id_evento=payload.id_evento,
+        id_pessoa=id_pessoa,
+        preferencial=payload.preferencial,
+        tipo_servico=payload.tipo_servico or "Passe / Consulta",
+        id_facilitador=payload.id_facilitador,
+        observacoes=payload.observacoes,
+    )
+
+    if not resultado:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível incluir a pessoa na fila do evento.",
+        )
+
+    return {
+        "message": "Acolhimento registrado na fila com sucesso!",
+        **resultado,
+    }
+
+
+@router.patch("/{id_agendamento}/status", status_code=status.HTTP_200_OK)
+def atualizar_status_atendimento(
+    id_agendamento: int,
+    payload: AgendamentoStatusUpdateRequest,
+    db: DBDependency,
+):
+    """
+    Atualiza o status do atendimento ('Aguardando', 'Chamado', 'Atendido', 'Ausente').
+    """
+    service = AgendamentoService(db)
+    sucesso = service.atualizar_status(id_agendamento, payload.status)
     if not sucesso:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Falha ao atualizar presença. Verifique o ID do agendamento."
+            detail="Falha ao atualizar status do atendimento.",
         )
-        
     return {
-        "message": "Status de comparecimento atualizado com sucesso.", 
-        "id_agendamento": id_agendamento, 
-        "novo_status": status_update.compareceu
+        "message": f"Status atualizado para '{payload.status}'.",
+        "id_agendamento": id_agendamento,
+        "novo_status": payload.status,
+    }
+
+
+@router.patch("/{id_agendamento}/reativar", status_code=status.HTTP_200_OK)
+def reativar_ausente(id_agendamento: int, db: DBDependency):
+    """
+    Remove o acolhido da lista de ausentes e retorna para a fila de espera ('Aguardando').
+    Útil quando a pessoa não ouviu a chamada da sua senha e retorna ao balcão.
+    """
+    service = AgendamentoService(db)
+    sucesso = service.reativar_ausente(id_agendamento)
+    if not sucesso:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não foi possível reativar o atendimento.",
+        )
+    return {
+        "message": "Atendimento reativado e retornado para a fila de espera com sucesso!",
+        "id_agendamento": id_agendamento,
+        "novo_status": "Aguardando",
+    }
+
+
+# --- Endpoints de compatibilidade ---
+
+@router.get("/pendentes", status_code=status.HTTP_200_OK)
+def listar_agendamentos_pendentes_detalhado(db: DBDependency):
+    """Endpoint legado mantido para compatibilidade."""
+    relatorio_service = RelatorioService(db)
+    agendamentos_detalhado = relatorio_service.gerar_detalhe_agendamentos_pendentes()
+    return agendamentos_detalhado or []
+
+
+@router.patch("/{id_agendamento}/confirmar", status_code=status.HTTP_200_OK)
+def confirmar_presenca(
+    id_agendamento: int,
+    status_update: AgendamentoUpdateStatus,
+    db: DBDependency,
+):
+    """Endpoint legado mantido para compatibilidade."""
+    agendamento_service = AgendamentoService(db)
+    sucesso = agendamento_service.confirmar_comparecimento(
+        id_agendamento,
+        status_update.compareceu,
+    )
+    if not sucesso:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Falha ao atualizar presença.",
+        )
+    return {
+        "message": "Status atualizado com sucesso.",
+        "id_agendamento": id_agendamento,
+        "novo_status": status_update.compareceu,
     }
