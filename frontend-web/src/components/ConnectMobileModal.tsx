@@ -10,28 +10,43 @@ interface ConnectMobileModalProps {
 
 export const ConnectMobileModal: React.FC<ConnectMobileModalProps> = ({ isOpen, onClose }) => {
   const [networkUrl, setNetworkUrl] = useState<string>('');
+  const [networkError, setNetworkError] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
-
-    // Tenta buscar o IP local detectado pelo backend
+    let active = true;
+    setNetworkUrl('');
+    setNetworkError(false);
     apiClient
       .get('/rede')
       .then((res) => {
-        if (res.data?.url) {
+        if (!active) return;
+        if (typeof res.data?.url === 'string' && res.data.url) {
           setNetworkUrl(res.data.url);
         } else {
+          setNetworkError(true);
           setNetworkUrl(window.location.origin);
         }
       })
       .catch(() => {
-        // Fallback para o endereço atual do navegador
+        if (!active) return;
+        setNetworkError(true);
         setNetworkUrl(window.location.origin);
       });
+    return () => { active = false; };
   }, [isOpen]);
 
   if (!isOpen) return null;
+
+  let localOnly = false;
+  try {
+    const hostname = new URL(networkUrl).hostname;
+    localOnly = hostname === 'localhost' || hostname === '0.0.0.0' ||
+      hostname === '[::1]' || hostname.startsWith('127.');
+  } catch {
+    localOnly = Boolean(networkUrl);
+  }
 
   const handleCopy = () => {
     navigator.clipboard.writeText(networkUrl);
@@ -41,7 +56,7 @@ export const ConnectMobileModal: React.FC<ConnectMobileModalProps> = ({ isOpen, 
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-white rounded-3xl max-w-sm w-full shadow-2xl border border-slate-100 p-6 text-center">
+      <div className="bg-white rounded-3xl max-w-sm w-full max-h-[90dvh] overflow-y-auto shadow-2xl border border-slate-100 p-6 text-center">
         {/* Cabeçalho */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2 text-slate-900 font-black text-base">
@@ -50,10 +65,24 @@ export const ConnectMobileModal: React.FC<ConnectMobileModalProps> = ({ isOpen, 
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+            aria-label="Fechar conexão mobile"
+            className="min-h-11 min-w-11 inline-flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {(networkError || localOnly) && (
+          <p role="alert" className="mb-4 rounded-xl bg-amber-50 p-3 text-left text-xs text-amber-900">
+            {localOnly
+              ? 'O endereço exibido aponta para este computador e não funciona no celular. Consulte o IP da rede local no computador e acesse http://IP-DA-REDE:8000.'
+              : 'Não foi possível detectar o IP da rede. Verifique se o endereço exibido é acessível pelo celular.'}
+          </p>
+        )}
+
+        <div className="mb-4 rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-left text-xs text-emerald-900">
+          Acesse pelo IP da rede local na porta 8000, por exemplo <strong>http://192.168.1.10:8000</strong>.
+          Se não conectar, pode ser necessário liberar a porta 8000 no Firewall do Windows.
         </div>
 
         {/* QR Code */}
