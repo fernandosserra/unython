@@ -10,9 +10,7 @@ import {
   RefreshCw,
   Plus,
   HeartHandshake,
-  Settings,
   RotateCcw,
-  Sparkles,
   Phone,
   AlertCircle,
   Megaphone,
@@ -21,7 +19,8 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { Agendamento, Evento, Pessoa, OrganizacaoConfig, Facilitador, Atividade } from '../types';
+import type { Agendamento, Evento, Pessoa, Facilitador, Atividade } from '../types';
+import { useOrgStore } from '../store/useOrgStore';
 
 interface AgendamentosViewProps {
   activeEvento: Evento | null;
@@ -34,16 +33,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   onNavigateToCaixa,
   onRefreshState,
 }) => {
-  // Configuração de terminologia da organização
-  const [orgConfig, setOrgConfig] = useState<OrganizacaoConfig>({
-    nome_organizacao: '',
-    tipo_organizacao: 'Organização',
-    termo_assistido: 'Pessoa',
-    termo_assistido_plural: 'Pessoas',
-    termo_atendente: 'Atendente',
-    termo_servico: 'Atendimento',
-    termo_atividade: 'Entidade / Serviço',
-  });
+  const orgConfig = useOrgStore((state) => state.config);
 
   // Eventos disponíveis (abertos e agendados para o futuro)
   const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
@@ -54,7 +44,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const [preAgendados, setPreAgendados] = useState<Agendamento[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'fila' | 'preagendados' | 'ausentes' | 'atendidos' | 'config'>('fila');
+  const [activeTab, setActiveTab] = useState<'fila' | 'preagendados' | 'ausentes' | 'atendidos'>('fila');
   const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   // Modais
@@ -72,7 +62,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const [formTelefone, setFormTelefone] = useState('');
   const [formDocumento, setFormDocumento] = useState('');
   const [formPreferencial, setFormPreferencial] = useState(false);
-  const [formServico, setFormServico] = useState('');
+  const [formServico, setFormServico] = useState(orgConfig.termo_servico);
   const [formFacilitadorId, setFormFacilitadorId] = useState<number | null>(null);
   const [facilitadores, setFacilitadores] = useState<Facilitador[]>([]);
   const [formAtividadeId, setFormAtividadeId] = useState<number | null>(null);
@@ -91,21 +81,6 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedbackMsg({ type, text });
     setTimeout(() => setFeedbackMsg(null), 4500);
-  };
-
-  // Carrega configurações da organização
-  const fetchConfig = async () => {
-    try {
-      const resp = await apiClient.get('/organizacao/config');
-      if (resp.data) {
-        setOrgConfig(resp.data);
-        if (!formServico) {
-          setFormServico(resp.data.termo_servico || 'Atendimento');
-        }
-      }
-    } catch {
-      showFeedback('error', 'Não foi possível carregar os termos da organização.');
-    }
   };
 
   // Carrega lista de eventos futuros e abertos
@@ -153,7 +128,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         setPreAgendados(preResp.value.data || []);
       }
       if (filaResp.status === 'rejected' || preResp.status === 'rejected') {
-        showFeedback('error', 'Não foi possível carregar todos os atendimentos do evento.');
+        showFeedback('error', `Não foi possível carregar todos os atendimentos de ${orgConfig.alias_evento}.`);
       }
     } catch (err) {
       console.error('Erro ao buscar dados do evento:', err);
@@ -191,7 +166,6 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   };
 
   useEffect(() => {
-    fetchConfig();
     fetchEventos();
     fetchPessoas();
     fetchFacilitadores();
@@ -214,7 +188,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const handleAcolherPresencial = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEventoId) {
-      showFeedback('error', 'Selecione ou abra um evento para registrar presença.');
+      showFeedback('error', `Selecione ou abra ${orgConfig.alias_evento} para registrar presença.`);
       return;
     }
 
@@ -274,7 +248,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
     e.preventDefault();
     const eventoAlvo = formEventoAlvoId || selectedEventoId;
     if (!eventoAlvo) {
-      showFeedback('error', 'Selecione o evento para o qual deseja agendar.');
+      showFeedback('error', `Selecione ${orgConfig.alias_evento} para o qual deseja agendar.`);
       return;
     }
 
@@ -307,7 +281,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       const evObj = eventosDisponiveis.find((x) => x.id === eventoAlvo);
       showFeedback(
         'success',
-        `Pré-agendamento confirmado com sucesso para ${formNome || pessoasCadastradas.find(p => p.id === selectedPessoaId)?.nome || orgConfig.termo_assistido} no evento "${evObj?.nome || 'selecionado'}"!`
+        `Pré-agendamento confirmado com sucesso para ${formNome || pessoasCadastradas.find(p => p.id === selectedPessoaId)?.nome || orgConfig.termo_assistido} em ${orgConfig.alias_evento} "${evObj?.nome || 'selecionado'}"!`
       );
 
       // Limpa formulário
@@ -354,7 +328,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const handleCriarEventoFuturo = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!novoEvNome || !novoEvData) {
-      showFeedback('error', 'Preencha o nome e a data do evento.');
+      showFeedback('error', `Preencha o nome e a data de ${orgConfig.alias_evento}.`);
       return;
     }
 
@@ -369,7 +343,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         },
       });
 
-      showFeedback('success', `Evento "${novoEvNome}" agendado no calendário com sucesso!`);
+      showFeedback('success', `${orgConfig.alias_evento} "${novoEvNome}" agendado no calendário com sucesso!`);
       setNovoEvNome('');
       setNovoEvData('');
       setIsNovoEventoModalOpen(false);
@@ -379,7 +353,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         setSelectedEventoId(resp.data.id);
       }
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.detail || 'Erro ao criar evento futuro.');
+      showFeedback('error', err.response?.data?.detail || `Erro ao criar ${orgConfig.alias_evento}.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -388,17 +362,17 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   // Iniciar / Abrir um evento agendado
   const handleIniciarEvento = async (idEvento: number) => {
     const aviso = activeEvento && activeEvento.id !== idEvento
-      ? `Iniciar este evento fechará "${activeEvento.nome}". Continuar?`
-      : 'Deseja iniciar e abrir este evento para a operação de hoje?';
+      ? `Iniciar ${orgConfig.alias_evento} fechará "${activeEvento.nome}". Continuar?`
+      : `Deseja iniciar ${orgConfig.alias_evento} para a operação de hoje?`;
     if (!confirm(aviso)) return;
     try {
       await apiClient.post(`/eventos/${idEvento}/iniciar`);
       await onRefreshState();
-      showFeedback('success', 'Evento aberto para operação com sucesso!');
+      showFeedback('success', `${orgConfig.alias_evento} aberto para operação com sucesso!`);
       await fetchEventos();
       setSelectedEventoId(idEvento);
     } catch {
-      showFeedback('error', 'Não foi possível iniciar o evento. Verifique a conexão e o status antes de tentar novamente.');
+      showFeedback('error', `Não foi possível iniciar ${orgConfig.alias_evento}. Verifique a conexão e o status antes de tentar novamente.`);
     }
   };
 
@@ -448,68 +422,6 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
     }
   };
 
-  // Salvar Parâmetros da Organização
-  const handleSalvarConfigOrg = async (preset?: Partial<OrganizacaoConfig>) => {
-    const dataToSend = { ...orgConfig, ...preset };
-    try {
-      await apiClient.put('/organizacao/config', dataToSend);
-      setOrgConfig(dataToSend);
-      setFormServico(dataToSend.termo_servico);
-      showFeedback('success', 'Vocabulário da organização salvo com sucesso!');
-    } catch {
-      alert('Erro ao salvar parâmetros da organização.');
-    }
-  };
-
-  // Pre-sets de entidades
-  const presets = [
-    {
-      tipo: 'Terreiro de Umbanda / Centro Espírita',
-      assistido: 'Consulente',
-      assistidos: 'Consulentes',
-      atendente: 'Médium / Cambone',
-      servico: 'Passe / Consulta',
-      atividade: 'Entidade',
-      icon: '🕊️',
-    },
-    {
-      tipo: 'Igreja Católica',
-      assistido: 'Fiel',
-      assistidos: 'Fiéis',
-      atendente: 'Padre / Diácono',
-      servico: 'Confissão / Escuta Pastoral',
-      atividade: 'Serviço',
-      icon: '⛪',
-    },
-    {
-      tipo: 'Igreja Evangélica',
-      assistido: 'Irmão / Visitante',
-      assistidos: 'Irmãos / Visitantes',
-      atendente: 'Pastor / Ministro',
-      servico: 'Oração / Aconselhamento',
-      atividade: 'Serviço',
-      icon: '📖',
-    },
-    {
-      tipo: 'Albergue / Casa de Passagem',
-      assistido: 'Acolhido',
-      assistidos: 'Acolhidos',
-      atendente: 'Assistente Social',
-      servico: 'Triagem / Acolhimento & Refeição',
-      atividade: 'Serviço',
-      icon: '🏠',
-    },
-    {
-      tipo: 'Clínica Social / Terapia',
-      assistido: 'Paciente',
-      assistidos: 'Pacientes',
-      atendente: 'Terapeuta / Psicólogo',
-      servico: 'Sessão / Terapia Integrativa',
-      atividade: 'Serviço',
-      icon: '🩺',
-    },
-  ];
-
   // Separação de Filas Ativas
   const filaAtiva = useMemo(() => {
     return fila.filter((a) => a.status === 'Aguardando' || a.status === 'Chamado');
@@ -551,7 +463,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
   return (
     <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-screen-2xl mx-auto space-y-4">
         {/* Cabeçalho */}
         <div className="flex flex-col gap-4">
           {/* Título centralizado */}
@@ -627,7 +539,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-emerald-600" />
-                Evento selecionado:
+                {orgConfig.alias_evento} selecionado:
               </span>
             </div>
 
@@ -662,7 +574,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                 onClick={() => handleIniciarEvento(eventoAtual.id)}
                 className="min-h-11 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
-                <span>Iniciar / Abrir Evento Hoje</span>
+                <span>Iniciar / Abrir {orgConfig.alias_evento} Hoje</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             )}
@@ -671,7 +583,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               <button
                 onClick={onNavigateToCaixa}
                 className="min-h-11 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
-                title="Abrir ou fechar turnos de caixa para a operação do evento"
+                title={`Abrir ou fechar turnos de caixa para a operação de ${orgConfig.alias_evento}`}
               >
                 <span>Gestão de Caixa &rarr;</span>
               </button>
@@ -683,7 +595,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               title="Cadastrar uma nova data no calendário"
             >
               <CalendarPlus className="w-4 h-4 text-slate-500" />
-              <span>+ Nova Data / Evento</span>
+              <span>+ Nova Data / {orgConfig.alias_evento}</span>
             </button>
           </div>
         </div>
@@ -774,29 +686,18 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               <span>Atendidos ({listaAtendidos.length})</span>
             </button>
 
-            <button
-              onClick={() => setActiveTab('config')}
-              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
-                activeTab === 'config' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-              <span>Configurações</span>
-            </button>
           </div>
 
-          {activeTab !== 'config' && (
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={`Buscar senha, nome do ${orgConfig.termo_assistido.toLowerCase()} ou telefone...`}
-                className="min-h-11 w-full pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium shadow-xs"
-              />
-            </div>
-          )}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={`Buscar senha, nome do ${orgConfig.termo_assistido.toLowerCase()} ou telefone...`}
+              className="min-h-11 w-full pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium shadow-xs"
+            />
+          </div>
         </div>
 
         {/* ABA 1: FILA ATIVA (PREFERENCIAL & GERAL) */}
@@ -1065,7 +966,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             {filtraPorBusca(preAgendados).length === 0 ? (
               <div className="bg-white rounded-3xl p-12 text-center border border-slate-200/80 shadow-xs flex flex-col items-center">
                 <Calendar className="w-12 h-12 text-indigo-300 mb-3" />
-                <h3 className="font-bold text-slate-800 text-base">Nenhum pré-agendamento pendente para este evento</h3>
+                <h3 className="font-bold text-slate-800 text-base">Nenhum pré-agendamento pendente para {orgConfig.alias_evento}</h3>
                 <p className="text-xs text-slate-400 mt-1 max-w-md">
                   Pessoas que ligam ou mandam WhatsApp durante a semana podem ser pré-agendadas clicando no botão acima.
                 </p>
@@ -1233,149 +1134,6 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
           </div>
         )}
 
-        {/* ABA 5: CONFIGURAÇÕES DA ENTIDADE */}
-        {activeTab === 'config' && (
-          <div className="space-y-6">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs space-y-6">
-              <div>
-                <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
-                  <Sparkles className="w-5 h-5 text-emerald-600" />
-                  Configuração da Organização / Vocabulário
-                </h3>
-                <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
-                  O Unython se adapta ao seu contexto social ou espiritual. Escolha um modelo pronto ou personalize cada termo livremente.
-                </p>
-              </div>
-
-              {/* Modelos Rápidos */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">Modelos Rápidos (1 Clique)</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-                  {presets.map((p) => {
-                    const isCurrent = orgConfig.tipo_organizacao.toLowerCase().includes(p.tipo.toLowerCase().split('/')[0].trim());
-                    return (
-                      <button
-                        key={p.tipo}
-                        type="button"
-                        onClick={() => {
-                          handleSalvarConfigOrg({
-                            tipo_organizacao: p.tipo,
-                            termo_assistido: p.assistido,
-                            termo_assistido_plural: p.assistidos,
-                            termo_atendente: p.atendente,
-                            termo_servico: p.servico,
-                            termo_atividade: p.atividade,
-                          });
-                        }}
-                        className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                          isCurrent
-                            ? 'border-emerald-500 bg-emerald-50/50 shadow-xs'
-                            : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 font-black text-sm text-slate-900">
-                          <span className="text-xl">{p.icon}</span>
-                          <span>{p.tipo.split('/')[0].trim()}</span>
-                        </div>
-                        <p className="text-xs text-slate-500 mt-1">
-                          {p.assistido} &bull; {p.atendente} &bull; {p.servico}
-                        </p>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Edição Manual */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSalvarConfigOrg();
-                }}
-                className="space-y-4 pt-4 border-t border-slate-100"
-              >
-                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">Ajuste Manual dos Termos</h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Tipo da Organização</label>
-                    <input
-                      type="text"
-                      value={orgConfig.tipo_organizacao}
-                      onChange={(e) => setOrgConfig({ ...orgConfig, tipo_organizacao: e.target.value })}
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Termo para a Pessoa Atendida (Singular)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Consulente, Fiel, Acolhido, Paciente"
-                      value={orgConfig.termo_assistido}
-                      onChange={(e) => setOrgConfig({ ...orgConfig, termo_assistido: e.target.value })}
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Termo para as Pessoas Atendidas (Plural)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Consulentes, Fiéis, Acolhidos, Pacientes"
-                      value={orgConfig.termo_assistido_plural}
-                      onChange={(e) => setOrgConfig({ ...orgConfig, termo_assistido_plural: e.target.value })}
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Termo para o Atendente / Facilitador
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Médium, Pastor, Padre, Assistente Social"
-                      value={orgConfig.termo_atendente}
-                      onChange={(e) => setOrgConfig({ ...orgConfig, termo_atendente: e.target.value })}
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nome para o cadastro de entidade ou serviço</label>
-                    <input type="text" required minLength={2} maxLength={50} placeholder="Ex: Entidade, Serviço" value={orgConfig.termo_atividade} onChange={(e) => setOrgConfig({ ...orgConfig, termo_atividade: e.target.value })} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Termo Padrão do Serviço / Atendimento
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: Passe / Consulta, Oração, Triagem, Aconselhamento"
-                      value={orgConfig.termo_servico}
-                      onChange={(e) => setOrgConfig({ ...orgConfig, termo_servico: e.target.value })}
-                      className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="pt-2 flex justify-end">
-                  <button
-                    type="submit"
-                    className="h-11 px-6 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all cursor-pointer"
-                  >
-                    Salvar Parâmetros Customizados
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* MODAL 1: CHECK-IN PRESENCIAL NA PORTA (EMITE SENHA IMEDIATA) */}
@@ -1608,7 +1366,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               {/* Seleção do Evento Futuro */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Selecione o evento futuro *
+                  Selecione {orgConfig.alias_evento} *
                 </label>
                 <select
                   value={formEventoAlvoId || selectedEventoId || ''}
@@ -1623,7 +1381,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Não encontrou a data desejada? Feche e clique em "+ Nova Data / Evento".
+                  Não encontrou a data desejada? Feche e clique em "+ Nova Data / {orgConfig.alias_evento}".
                 </p>
               </div>
 
@@ -1803,7 +1561,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <form onSubmit={handleCriarEventoFuturo} className="space-y-3.5 mt-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Nome do Evento / Trabalho *
+                  Nome: {orgConfig.alias_evento} *
                 </label>
                 <input
                   type="text"

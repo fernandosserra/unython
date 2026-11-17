@@ -21,6 +21,7 @@ import {
 import { apiClient } from '../api/client';
 import { useCartStore } from '../store/useCartStore';
 import { useAuthStore } from '../store/useAuthStore';
+import { useOrgStore } from '../store/useOrgStore';
 import type { Evento, MovimentoCaixa, Item } from '../types';
 
 interface PDVViewProps {
@@ -50,6 +51,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
   onNavigateToCaixa,
 }) => {
   const { user } = useAuthStore();
+  const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const { items, addItem, updateQuantity, removeItem, clearCart, getTotalPrice, getTotalItems } =
     useCartStore();
 
@@ -167,7 +169,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
   const handleFinalizeSale = async () => {
     setSaleError('');
     if (!activeEvento) {
-      alert('Atenção: É necessário abrir um Evento antes de registrar vendas.');
+      alert(`Atenção: É necessário abrir ${aliasEvento} antes de registrar vendas.`);
       return;
     }
     if (!activeMovimento) {
@@ -219,7 +221,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <div className="text-xs sm:text-sm truncate">
                 <span className="font-bold">Aviso: </span>
-                {!activeEvento && 'Abra um Evento. '}
+                {!activeEvento && `Abra ${aliasEvento}. `}
                 {!activeMovimento && 'Abra um Caixa.'}
               </div>
             </div>

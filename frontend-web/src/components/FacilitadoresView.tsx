@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiClient } from '../api/client';
+import { useOrgStore } from '../store/useOrgStore';
 import type { Facilitador } from '../types';
 
 export function FacilitadoresView() {
   const [items, setItems] = useState<Facilitador[]>([]);
-  const [termo, setTermo] = useState('Atendente');
+  const termo = useOrgStore((state) => state.config.termo_atendente);
   const [editing, setEditing] = useState<Facilitador | null>(null);
   const [nome, setNome] = useState('');
   const [especialidade, setEspecialidade] = useState('');
@@ -14,9 +15,9 @@ export function FacilitadoresView() {
   const [busy, setBusy] = useState(false);
   const load = async () => {
     try {
-      const [list, config] = await Promise.all([apiClient.get('/facilitadores/'), apiClient.get('/organizacao/config')]);
-      setItems(list.data); setTermo(config.data.termo_atendente); setError('');
-    } catch { setError('Não foi possível carregar os cadastros ou a configuração.'); }
+      const list = await apiClient.get('/facilitadores/');
+      setItems(list.data); setError('');
+    } catch { setError('Não foi possível carregar os cadastros.'); }
   };
   useEffect(() => { void load(); }, []);
   const clear = () => { setEditing(null); setNome(''); setEspecialidade(''); setObservacoes(''); };

@@ -90,6 +90,7 @@ class OrganizacaoConfigSchema(BaseModel):
     termo_atendente: str = Field(..., min_length=2, max_length=50)
     termo_servico: str = Field(..., min_length=2, max_length=50)
     termo_atividade: str = Field(default="Entidade / Serviço", min_length=2, max_length=50)
+    alias_evento: str = Field(default="Evento", min_length=2, max_length=50)
 
 
 class PessoaCreate(BaseModel):

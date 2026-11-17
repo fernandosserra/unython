@@ -13,14 +13,19 @@ import {
   ArrowUpCircle,
   Shield,
   Smartphone,
+  CalendarDays,
+  UserRound,
+  ClipboardList,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
+import { useOrgStore } from '../store/useOrgStore';
 import { ConnectMobileModal } from './ConnectMobileModal';
 import { RelatoriosView } from './RelatoriosView';
 import { CalendarioView } from './CalendarioView';
 import { FacilitadoresView } from './FacilitadoresView';
 import { AtividadesView } from './AtividadesView';
+import { OrganizacaoConfigView } from './OrganizacaoConfigView';
 import type { Categoria, Item, Usuario, Evento } from '../types';
 
 interface AdminViewProps {
@@ -28,10 +33,28 @@ interface AdminViewProps {
   onRefreshState: () => Promise<void>;
 }
 
+type AdminTab = 'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades' | 'configuracao';
+
 export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState }) => {
   const { user, setUser, setNotice, logout } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades'>('produtos');
-  const [termos, setTermos] = useState({ termo_atendente: 'Atendente', termo_atividade: 'Entidade / Serviço' });
+  const [activeTab, setActiveTab] = useState<AdminTab>('produtos');
+  const termos = useOrgStore((state) => state.config);
+  const modules: { title: string; items: { id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] }[] = [
+    { title: 'Operação', items: [{ id: 'calendario' as const, label: `Calendário & ${termos.alias_evento}`, icon: CalendarDays }] },
+    { title: 'Pessoas & Atendimentos', items: [
+      { id: 'facilitadores' as const, label: termos.termo_atendente, icon: UserRound },
+      { id: 'atividades' as const, label: termos.termo_atividade, icon: ClipboardList },
+      { id: 'usuarios' as const, label: 'Usuários & Permissões', icon: Users },
+    ] },
+    { title: 'Logística', items: [
+      { id: 'produtos' as const, label: 'Produtos & Categorias', icon: Package },
+      { id: 'estoque' as const, label: 'Movimentação de Estoque', icon: ArrowDownCircle },
+    ] },
+    { title: 'Financeiro & Sistema', items: [
+      { id: 'relatorios' as const, label: 'DRE & Relatórios', icon: BarChart3 },
+      { id: 'configuracao' as const, label: 'Configurações da Organização', icon: Settings },
+    ] },
+  ];
 
   // Estados de Produtos e Categorias
   const [itens, setItens] = useState<Item[]>([]);
@@ -113,9 +136,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   useEffect(() => {
     loadCatalogData();
     loadUsers();
-    apiClient.get('/organizacao/config').then(res => setTermos(res.data)).catch(() => {
-      showFeedback('error', 'Não foi possível carregar os termos da organização.');
-    });
   }, []);
 
   // Salvar Novo Produto
@@ -177,7 +197,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   const handleMovimentacaoEstoque = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!estoqueItemId || !activeEvento) {
-      showFeedback('error', !activeEvento ? 'Abra um Evento antes de lançar estoque.' : 'Selecione um produto.');
+      showFeedback('error', !activeEvento ? `Abra ${termos.alias_evento} antes de lançar estoque.` : 'Selecione um produto.');
       return;
     }
     if (!estoqueOrigem.trim()) {
@@ -275,8 +295,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   );
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <div className="min-w-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-5 lg:p-6">
+      <div className="max-w-screen-2xl mx-auto space-y-4">
         {/* Cabeçalho */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
@@ -316,52 +336,40 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           </div>
         )}
 
-        {/* Barra de Sub-abas */}
-        <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
-          <button onClick={() => setActiveTab('calendario')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'calendario' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>Calendário & Eventos</button>
-          <button onClick={() => setActiveTab('facilitadores')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'facilitadores' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>{termos.termo_atendente}</button>
-          <button onClick={() => setActiveTab('atividades')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'atividades' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>{termos.termo_atividade}</button>
-          <button
-            onClick={() => setActiveTab('produtos')}
-            className={`h-10 px-4 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-              activeTab === 'produtos' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Package className="w-4 h-4" />
-            <span>Produtos & Categorias</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('estoque')}
-            className={`h-10 px-4 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-              activeTab === 'estoque' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <ArrowDownCircle className="w-4 h-4" />
-            <span>Entrada de Estoque</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('usuarios')}
-            className={`h-10 px-4 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-              activeTab === 'usuarios' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Voluntários & Usuários</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('relatorios')}
-            className={`h-10 px-4 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
-              activeTab === 'relatorios' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-            }`}
-          >
-            <BarChart3 className="w-4 h-4" />
-            <span>DRE & Relatórios</span>
-          </button>
-        </div>
-
+        <div className="lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:items-start gap-4">
+          <label className="block lg:hidden text-xs font-bold text-slate-700 mb-3">
+            Área da administração
+            <select
+              value={activeTab}
+              onChange={(event) => {
+                const item = modules.flatMap((module) => module.items).find((entry) => entry.id === event.target.value);
+                if (item) setActiveTab(item.id);
+              }}
+              className="mt-1 w-full rounded-xl border border-slate-300 bg-white p-3 text-sm"
+            >
+              {modules.map((module) => (
+                <optgroup key={module.title} label={module.title}>
+                  {module.items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <nav aria-label="Módulos da administração" className="hidden lg:block sticky top-0 rounded-2xl border border-slate-200 bg-white p-3 shadow-xs">
+            {modules.map((module) => (
+              <div key={module.title} className="mb-3 last:mb-0">
+                <h2 className="px-2 py-2 text-[11px] font-bold uppercase tracking-wide text-slate-500">{module.title}</h2>
+                {module.items.map((item) => {
+                  const Icon = item.icon;
+                  return <button key={item.id} type="button" onClick={() => setActiveTab(item.id)}
+                    aria-current={activeTab === item.id ? 'page' : undefined}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${activeTab === item.id ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}>
+                    <Icon className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{item.label}</span>
+                  </button>;
+                })}
+              </div>
+            ))}
+          </nav>
+          <div className="min-w-0">
         {/* Conteúdo da Aba 1: Produtos e Categorias */}
         {activeTab === 'produtos' && (
           <div className="space-y-6">
@@ -652,11 +660,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
 
               {activeEvento ? (
                 <p className="text-xs text-emerald-800 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200">
-                  Entrada será vinculada ao evento ativo: <span className="font-bold">{activeEvento.nome}</span>
+                  Entrada será vinculada a {termos.alias_evento}: <span className="font-bold">{activeEvento.nome}</span>
                 </p>
               ) : (
                 <p className="text-xs text-amber-800 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                  ⚠️ Abra um Evento na aba Caixa para poder registrar movimentos de estoque.
+                  ⚠️ Abra {termos.alias_evento} na aba Caixa para poder registrar movimentos de estoque.
                 </p>
               )}
 
@@ -873,6 +881,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         {activeTab === 'calendario' && <CalendarioView activeEvento={activeEvento} onRefreshState={onRefreshState} />}
         {activeTab === 'facilitadores' && <FacilitadoresView />}
         {activeTab === 'atividades' && <AtividadesView termo={termos.termo_atividade} />}
+        {activeTab === 'configuracao' && <OrganizacaoConfigView />}
+          </div>
+        </div>
       </div>
 
       {/* Modal QR Code Celular */}

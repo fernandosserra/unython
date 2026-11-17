@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
+import { useOrgStore } from '../store/useOrgStore';
 import type { Evento, Caixa, MovimentoCaixa } from '../types';
 
 interface CaixaViewProps {
@@ -24,6 +25,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   onRefreshState,
 }) => {
   const { user } = useAuthStore();
+  const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const [caixas, setCaixas] = useState<Caixa[]>([]);
   const [selectedCaixaId, setSelectedCaixaId] = useState<number | null>(null);
   const [valorAbertura, setValorAbertura] = useState<number>(50);
@@ -68,11 +70,11 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       await apiClient.post('/eventos/abrir', null, {
         params: { nome: nomeFinal, tipo: tipoNovoEvento },
       });
-      setMessage({ type: 'success', text: `Evento "${nomeFinal}" aberto com sucesso!` });
+      setMessage({ type: 'success', text: `${aliasEvento} "${nomeFinal}" aberto com sucesso!` });
       setNomeNovoEvento('');
       await onRefreshState();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erro ao abrir evento.' });
+      setMessage({ type: 'error', text: err.response?.data?.detail || `Erro ao abrir ${aliasEvento}.` });
     } finally {
       setIsLoading(false);
     }
@@ -80,16 +82,16 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
 
   const handleFecharEvento = async () => {
     if (!activeEvento) return;
-    if (!confirm(`Deseja realmente fechar o evento "${activeEvento.nome}"?`)) return;
+    if (!confirm(`Deseja realmente fechar ${aliasEvento} "${activeEvento.nome}"?`)) return;
 
     setIsLoading(true);
     setMessage(null);
     try {
       await apiClient.post(`/eventos/${activeEvento.id}/fechar`);
-      setMessage({ type: 'success', text: 'Evento fechado com sucesso.' });
+      setMessage({ type: 'success', text: `${aliasEvento} encerrado com sucesso.` });
       await onRefreshState();
     } catch (err: any) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'Erro ao fechar evento.' });
+      setMessage({ type: 'error', text: err.response?.data?.detail || `Erro ao encerrar ${aliasEvento}.` });
     } finally {
       setIsLoading(false);
     }
@@ -101,7 +103,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       return;
     }
     if (!activeEvento) {
-      alert('É necessário ter um Evento aberto antes de abrir a sessão de caixa.');
+      alert(`É necessário ter ${aliasEvento} aberto antes de abrir a sessão de caixa.`);
       return;
     }
 
@@ -166,15 +168,15 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   };
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-3 sm:p-5 lg:p-6">
+      <div className="max-w-screen-2xl mx-auto space-y-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
             <Wallet className="w-7 h-7 text-emerald-600" />
             Turno, Caixa & Operação
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 font-medium">
-            Gerenciamento de eventos fiscais e controle de abertura/fechamento de gaveta.
+            Gerenciamento de {aliasEvento} e controle de abertura/fechamento de gaveta.
           </p>
         </div>
 
@@ -202,7 +204,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-emerald-600" />
-                  1. Evento / Dia de Trabalho
+                  1. {aliasEvento} / Dia de Trabalho
                 </span>
                 <span
                   className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -221,14 +223,14 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                     <span className="font-semibold">{activeEvento.tipo}</span>
                   </p>
                   <p className="text-[11px] text-slate-500 mt-3">
-                    Todas as vendas e atendimentos registrados agora serão vinculados a este evento fiscal.
+                    Todas as vendas e atendimentos registrados agora serão vinculados a {aliasEvento}.
                   </p>
                 </div>
               ) : (
                 <form onSubmit={handleAbrirEvento} className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Nome do Evento
+                      Nome: {aliasEvento}
                     </label>
                     <input
                       type="text"
@@ -255,7 +257,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                     disabled={isLoading}
                     className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-2"
                   >
-                    Abrir Novo Evento
+                    Abrir {aliasEvento}
                   </button>
                 </form>
               )}
@@ -270,7 +272,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                   className="w-full h-11 border border-rose-200 hover:bg-rose-50 text-rose-700 rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   <Lock className="w-4 h-4" />
-                  <span>Encerrar Evento do Dia</span>
+                  <span>Encerrar {aliasEvento}</span>
                 </button>
               </div>
             )}
@@ -363,7 +365,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                   </button>
                   {!activeEvento && (
                     <p className="text-[11px] text-amber-600 font-medium text-center">
-                      * Abra o Evento ao lado antes de abrir o caixa.
+                      * Abra {aliasEvento} ao lado antes de abrir o caixa.
                     </p>
                   )}
                 </div>

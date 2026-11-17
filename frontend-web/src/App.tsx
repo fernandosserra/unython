@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { useAuthStore } from './store/useAuthStore';
+import { useOrgStore } from './store/useOrgStore';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
 import { PDVView } from './components/PDVView';
@@ -20,7 +21,9 @@ export function App() {
   const [activeEvento, setActiveEvento] = useState<Evento | null>(null);
   const [activeMovimento, setActiveMovimento] = useState<MovimentoCaixa | null>(null);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
-  const [orgConfig, setOrgConfig] = useState<{nome_organizacao: string}>({nome_organizacao: ''});
+  const loadConfig = useOrgStore((state) => state.loadConfig);
+  const [configStatus, setConfigStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [configRetry, setConfigRetry] = useState(0);
 
   // Carrega status da sessão ativa (Evento aberto + Caixa ativo)
   const refreshActiveSession = useCallback(async () => {
@@ -58,16 +61,6 @@ export function App() {
         }
       }
       setActiveMovimento(foundMov);
-
-      // 3. Busca nome da organização
-      try {
-        const orgResp = await apiClient.get('/organizacao/config');
-        if (orgResp.data?.nome_organizacao) {
-          setOrgConfig({ nome_organizacao: orgResp.data.nome_organizacao });
-        }
-      } catch {
-        // Usa padrão
-      }
     } catch (err) {
       console.error('Erro ao sincronizar sessão:', err);
     }
@@ -78,6 +71,20 @@ export function App() {
       refreshActiveSession();
     }
   }, [isAuthenticated, refreshActiveSession]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setConfigStatus('loading');
+      return;
+    }
+    let active = true;
+    setConfigStatus('loading');
+    loadConfig().then(
+      () => { if (active) setConfigStatus('ready'); },
+      () => { if (active) setConfigStatus('error'); },
+    );
+    return () => { active = false; };
+  }, [isAuthenticated, loadConfig, configRetry]);
 
   useEffect(() => {
     if (currentTab === 'admin' && user?.role !== 'Administrador') {
@@ -112,6 +119,22 @@ export function App() {
     );
   }
 
+  if (configStatus !== 'ready') {
+    return (
+      <>
+        <ConnectivityBanner />
+        <div className="p-6" role={configStatus === 'error' ? 'alert' : 'status'}>
+          {configStatus === 'error' ? (
+            <>
+              <p>Não foi possível carregar a configuração da organização.</p>
+              <button type="button" onClick={() => setConfigRetry((count) => count + 1)} className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-white">Tentar novamente</button>
+            </>
+          ) : 'Carregando configuração da organização...'}
+        </div>
+      </>
+    );
+  }
+
   return (
     <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-900 pb-[calc(4.25rem_+_env(safe-area-inset-bottom))] lg:pb-0">
       <Navbar
@@ -120,7 +143,6 @@ export function App() {
         activeEvento={activeEvento}
         activeMovimento={activeMovimento}
         onOpenMobileModal={() => setIsMobileModalOpen(true)}
-        orgNomeOrganizacao={orgConfig.nome_organizacao}
       />
       <ConnectivityBanner />
 

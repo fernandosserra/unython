@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiClient } from '../api/client';
+import { useOrgStore } from '../store/useOrgStore';
 import type { Evento } from '../types';
 
 interface Props {
@@ -12,6 +13,7 @@ const dateKey = (year: number, month: number, day: number) =>
   `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 
 export function CalendarioView({ activeEvento, onRefreshState }: Props) {
+  const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [selected, setSelected] = useState<Evento | null>(null);
@@ -35,7 +37,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       setEventos(res.data);
       setError('');
     } catch {
-      setError('Não foi possível carregar os eventos.');
+      setError(`Não foi possível carregar ${aliasEvento}.`);
     }
   };
 
@@ -60,7 +62,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       setConsultouHistorico(true);
       setError('');
     } catch {
-      setError('Não foi possível consultar o histórico de eventos.');
+      setError(`Não foi possível consultar o histórico de ${aliasEvento}.`);
     } finally {
       setBusy(false);
     }
@@ -69,7 +71,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
   const criar = async (e: FormEvent) => {
     e.preventDefault();
     if (!nome.trim() || !tipo.trim()) {
-      setError('Informe nome e tipo do evento.');
+      setError(`Informe nome e tipo de ${aliasEvento}.`);
       return;
     }
     setBusy(true);
@@ -80,12 +82,12 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       if (y === year && m === monthIndex + 1) await load();
       else setMonth(new Date(y, m - 1, 1));
     } catch {
-      setError('Não foi possível criar o evento.');
+      setError(`Não foi possível criar ${aliasEvento}.`);
     } finally { setBusy(false); }
   };
 
   const iniciar = async (evento: Evento) => {
-    if (activeEvento && activeEvento.id !== evento.id && !window.confirm(`Iniciar este evento fechará "${activeEvento.nome}". Continuar?`)) return;
+    if (activeEvento && activeEvento.id !== evento.id && !window.confirm(`Iniciar ${aliasEvento} fechará "${activeEvento.nome}". Continuar?`)) return;
     setBusy(true);
     try {
       await apiClient.post(`/eventos/${evento.id}/iniciar`);
@@ -93,7 +95,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       await onRefreshState();
       await load();
     } catch {
-      setError('Não foi possível iniciar o evento.');
+      setError(`Não foi possível iniciar ${aliasEvento}.`);
     } finally { setBusy(false); }
   };
 
@@ -103,10 +105,10 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       <label className="text-xs font-bold">Nome<input required minLength={2} value={nome} onChange={e => setNome(e.target.value)} className="block border rounded-lg p-2" /></label>
       <label className="text-xs font-bold">Data<input required type="date" value={data} onChange={e => setData(e.target.value)} className="block border rounded-lg p-2" /></label>
       <label className="text-xs font-bold">Tipo<input required value={tipo} onChange={e => setTipo(e.target.value)} className="block border rounded-lg p-2" /></label>
-      <button disabled={busy} className="bg-emerald-700 text-white rounded-lg p-2 font-bold text-sm">Criar evento</button>
+      <button disabled={busy} className="bg-emerald-700 text-white rounded-lg p-2 font-bold text-sm">Criar {aliasEvento}</button>
     </form>
     <section className="bg-white rounded-2xl p-4 space-y-3">
-      <h2 className="font-bold">Histórico de eventos</h2>
+      <h2 className="font-bold">Histórico: {aliasEvento}</h2>
       <form onSubmit={consultarHistorico} className="flex flex-wrap gap-3 items-end">
         <label className="text-xs font-bold">Data inicial
           <input required type="date" value={dataInicioHistorico} onChange={e => setDataInicioHistorico(e.target.value)} className="block border rounded-lg p-2" />
@@ -126,7 +128,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
               </li>
             ))}
           </ul>
-        ) : <p className="text-sm text-slate-500">Nenhum evento encontrado no período selecionado.</p>
+        ) : <p className="text-sm text-slate-500">Nenhum registro encontrado no período selecionado.</p>
       )}
     </section>
     <div className="bg-white rounded-2xl p-4">
@@ -135,7 +137,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
         <h2 className="font-bold capitalize">{month.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</h2>
         <button type="button" aria-label="Próximo mês" onClick={() => setMonth(new Date(year, monthIndex + 1, 1))}>→</button>
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-1 [&>*]:min-w-0">
         {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(d => <div key={d} className="text-center text-xs font-bold">{d}</div>)}
         {Array.from({ length: offset }, (_, i) => <div key={`blank-${i}`} />)}
         {Array.from({ length: days }, (_, i) => {
@@ -150,7 +152,7 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
     {selected && <div className="bg-white p-4 rounded-2xl">
       <h3 className="font-bold">{selected.nome}</h3>
       <p className="text-sm">{selected.data_evento.split('-').reverse().join('/')} · {selected.tipo} · {selected.status}</p>
-      {selected.status === 'Agendado' && <button disabled={busy} onClick={() => void iniciar(selected)} className="mt-2 text-emerald-700 font-bold">Iniciar evento</button>}
+      {selected.status === 'Agendado' && <button disabled={busy} onClick={() => void iniciar(selected)} className="mt-2 text-emerald-700 font-bold">Iniciar {aliasEvento}</button>}
       <button onClick={() => setSelected(null)} className="ml-4 text-slate-600">Fechar detalhes</button>
     </div>}
   </div>;

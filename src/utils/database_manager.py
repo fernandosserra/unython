@@ -291,7 +291,8 @@ class DatabaseManager:
             termo_assistido_plural VARCHAR(50) NOT NULL DEFAULT 'Consulentes',
             termo_atendente VARCHAR(50) NOT NULL DEFAULT 'Médium / Cambone',
             termo_servico VARCHAR(50) NOT NULL DEFAULT 'Passe / Consulta',
-            termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço'
+            termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço',
+            alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento'
         );
         """
 
@@ -463,6 +464,7 @@ class DatabaseManager:
 
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS nome_organizacao VARCHAR(150) DEFAULT 'Terreiro Caboclo Pena Branca';
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento';
 
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS numero_senha VARCHAR(20);
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS preferencial BOOLEAN DEFAULT FALSE;

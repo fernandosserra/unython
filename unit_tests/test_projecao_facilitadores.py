@@ -38,7 +38,7 @@ class MemoryDB:
                 nome_doador TEXT, forma_pagamento TEXT, status TEXT DEFAULT 'Ativo');
             CREATE TABLE organizacao_config (id INTEGER PRIMARY KEY, nome_organizacao TEXT, tipo_organizacao TEXT,
                 termo_assistido TEXT, termo_assistido_plural TEXT, termo_atendente TEXT, termo_servico TEXT,
-                termo_atividade TEXT);
+                termo_atividade TEXT, alias_evento TEXT);
         """)
 
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False, commit=False, return_rowcount=False):
@@ -189,6 +189,37 @@ def test_config_legada_nao_apaga_termo_atividade(db):
     db.conn.execute("INSERT INTO pessoas (id, nome) VALUES (1, 'João')")
     agendar_com_antecedencia(AcolhimentoCreateRequest(id_evento=1, id_pessoa=1), db)
     assert AgendamentoService(db).listar_pre_agendados(1)[0]["tipo_servico"] == "Consulta"
+
+
+def test_config_alias_evento_e_autorizacao(db):
+    payload = dict(nome_organizacao="Casa", tipo_organizacao="Igreja", termo_assistido="Fiel",
+                   termo_assistido_plural="Fiéis", termo_atendente="Padre", termo_servico="Consulta")
+    admin = Usuario(id=1, nome="Admin", email="admin@example.test", funcao="Admin", role="Administrador")
+    operador = Usuario(id=2, nome="Operador", email="op@example.test", funcao="Operador", role="Operador")
+    app.dependency_overrides[get_db] = lambda: db
+    client = TestClient(app)
+    try:
+        assert client.get("/api/organizacao/config").json()["alias_evento"] == "Evento"
+        assert client.put("/api/organizacao/config", json=payload).status_code == 401
+        app.dependency_overrides[get_current_user] = lambda: operador
+        assert client.put("/api/organizacao/config", json=payload).status_code == 403
+        assert db.conn.execute("SELECT COUNT(*) FROM organizacao_config").fetchone()[0] == 0
+        app.dependency_overrides[get_current_user] = lambda: admin
+        response = client.put("/api/organizacao/config", json={**payload, "alias_evento": "Gira",
+                                                                 "termo_atividade": "Serviço"})
+        assert response.status_code == 200
+        assert response.json()["config"]["alias_evento"] == "Gira"
+        response = client.put("/api/organizacao/config", json=payload)
+        assert response.status_code == 200
+        assert response.json()["config"]["alias_evento"] == "Gira"
+        assert response.json()["config"]["termo_atividade"] == "Serviço"
+        assert client.get("/api/organizacao/config").json()["alias_evento"] == "Gira"
+        assert client.put("/api/organizacao/config", json={**payload, "alias_evento": ""}).status_code == 422
+        assert client.put("/api/organizacao/config", json={**payload, "alias_evento": "x" * 51}).status_code == 422
+        assert client.get("/api/organizacao/config").json()["alias_evento"] == "Gira"
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
 
 
 def test_api_doacao_exige_usuario_e_aceita_fluxo_sem_evento(db):

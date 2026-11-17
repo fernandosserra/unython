@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { apiClient } from '../api/client';
+import { useOrgStore } from '../store/useOrgStore';
 import type { Evento } from '../types';
 
 interface Doacao {
@@ -20,6 +21,7 @@ const hoje = () => {
 };
 
 export function DoacoesView() {
+  const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const [doacoes, setDoacoes] = useState<Doacao[] | null>(null);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [valor, setValor] = useState('');
@@ -74,9 +76,9 @@ export function DoacoesView() {
   return <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6">
     <div className="max-w-5xl mx-auto space-y-4">
       <h1 className="text-2xl font-black text-slate-900">Doações financeiras</h1>
-      <p className="text-sm text-slate-600">Registre receitas com ou sem evento, sem abrir uma sessão de caixa.</p>
+      <p className="text-sm text-slate-600">Registre receitas com ou sem {aliasEvento}, sem abrir uma sessão de caixa.</p>
       {error && <p role="alert" className="p-3 bg-rose-50 text-rose-800 rounded-xl">{error}</p>}
-      {eventosError && <p role="alert" className="p-3 bg-amber-50 text-amber-800 rounded-xl">Não foi possível carregar os eventos; você ainda pode registrar uma doação sem evento.</p>}
+      {eventosError && <p role="alert" className="p-3 bg-amber-50 text-amber-800 rounded-xl">Não foi possível carregar {aliasEvento}; você ainda pode registrar uma doação sem vinculá-lo.</p>}
       {success && <p role="status" className="p-3 bg-emerald-50 text-emerald-800 rounded-xl">{success}</p>}
       <form onSubmit={save} className="bg-white rounded-2xl p-5 space-y-3">
         <h2 className="font-bold">Registrar doação</h2>
@@ -85,8 +87,8 @@ export function DoacoesView() {
           <label className="text-xs font-bold">Data<input required type="date" value={data} onChange={e => setData(e.target.value)} className="block w-full border rounded-lg p-2" /></label>
           <label className="text-xs font-bold">Doador (opcional)<input maxLength={255} value={doador} onChange={e => setDoador(e.target.value)} className="block w-full border rounded-lg p-2" /></label>
           <label className="text-xs font-bold">Forma de pagamento (opcional)<input maxLength={100} value={pagamento} onChange={e => setPagamento(e.target.value)} placeholder="Ex: PIX, dinheiro" className="block w-full border rounded-lg p-2" /></label>
-          <label className="text-xs font-bold">Evento (opcional)<select value={evento} onChange={e => setEvento(e.target.value)} className="block w-full border rounded-lg p-2">
-            <option value="">Sem evento</option>
+          <label className="text-xs font-bold">{aliasEvento} (opcional)<select value={evento} onChange={e => setEvento(e.target.value)} className="block w-full border rounded-lg p-2">
+            <option value="">Sem {aliasEvento}</option>
             {eventos.map(item => <option key={item.id} value={item.id}>{item.nome} ({item.data_evento.split('-').reverse().join('/')})</option>)}
           </select></label>
           <label className="text-xs font-bold">Observações (opcional)<input value={descricao} onChange={e => setDescricao(e.target.value)} className="block w-full border rounded-lg p-2" /></label>

@@ -19,6 +19,7 @@ class OrganizacaoConfig:
     termo_servico: str = "Passe / Consulta"
     termo_atividade: str = "Entidade / Serviço"
     id: Optional[int] = 1
+    alias_evento: str = "Evento"
 
 
 @dataclass

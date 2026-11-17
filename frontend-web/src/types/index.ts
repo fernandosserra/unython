@@ -105,6 +105,7 @@ export interface OrganizacaoConfig {
   termo_atendente: string;
   termo_servico: string;
   termo_atividade: string;
+  alias_evento: string;
 }
 
 export interface CartItem {
