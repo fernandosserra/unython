@@ -1,3 +1,4 @@
+from datetime import date, timedelta
 from decimal import Decimal
 import sqlite3
 from unittest.mock import MagicMock
@@ -7,12 +8,13 @@ from fastapi.testclient import TestClient
 
 from app.api_main import app
 from app.routers import caixas, estoque, usuarios, vendas
+from src.modules.caixas import CaixaService
 from src.modules.estoque import EstoqueService
 from src.modules.organizacao import OrganizacaoService
 from src.modules.venda import VendaService
 from src.utils.audit import record_audit
 from src.utils.dependencies import get_current_user, get_db
-from src.utils.models import ItemVenda, OrganizacaoConfig, Usuario, Venda
+from src.utils.models import Evento, ItemVenda, OrganizacaoConfig, Usuario, Venda
 
 
 @pytest.fixture
@@ -42,12 +44,35 @@ def test_record_audit_never_commits():
     db.conn.commit.assert_not_called()
 
 
+def test_validar_evento_abertura_rejeita_data_operacional_diferente():
+    db = MagicMock()
+    db.execute_query.return_value = (
+        ["id", "nome", "data_evento", "tipo", "status"],
+        (3, "Gira de Caboclos", date.today() + timedelta(days=1), "Atendimento", "Agendado"),
+    )
+
+    with pytest.raises(ValueError, match="não corresponde à data operacional permitida"):
+        CaixaService(db).validar_evento_abertura(3)
+
+
+def test_data_operacional_exposta_pelo_servidor(api):
+    _, client = api
+
+    response = client.get("/api/eventos/data-operacional")
+
+    assert response.status_code == 200
+    assert response.json() == {"data_operacional": date.today().isoformat()}
+
+
 @pytest.mark.parametrize("fails", [False, True])
 def test_abertura_caixa_audit_actor_e_rollback(api, monkeypatch, fails):
     db, client = api
     service = MagicMock()
     service.buscar_movimento_ativo.return_value = None
     service.abrir_movimento.return_value = 22
+    service.validar_evento_abertura.return_value = Evento(
+        id=3, nome="Evento de Hoje", data_evento=date.today(), tipo="Atendimento", status="Agendado"
+    )
     monkeypatch.setattr(caixas, "CaixaService", lambda db: service)
     audit = MagicMock(side_effect=RuntimeError("falha") if fails else None)
     monkeypatch.setattr(caixas, "record_audit", audit)
@@ -57,8 +82,29 @@ def test_abertura_caixa_audit_actor_e_rollback(api, monkeypatch, fails):
     service.abrir_movimento.assert_called_once_with(4, 7, Decimal("10"), 3, commit=False)
     assert audit.call_args.kwargs["user_id"] == 7
     assert audit.call_args.kwargs["request_id"] == "request-123"
+    assert audit.call_args.kwargs["detalhes"]["evento_nome"] == "Evento de Hoje"
+    assert audit.call_args.kwargs["detalhes"]["evento_data"] == str(date.today())
     assert db.conn.commit.call_count == (0 if fails else 1)
     assert db.conn.rollback.call_count == (1 if fails else 0)
+
+
+def test_abertura_caixa_rejeita_evento_de_outra_data(api, monkeypatch):
+    db, client = api
+    service = MagicMock()
+    service.validar_evento_abertura.side_effect = ValueError(
+        "A data do evento não corresponde à data operacional permitida."
+    )
+    monkeypatch.setattr(caixas, "CaixaService", lambda db: service)
+    audit = MagicMock()
+    monkeypatch.setattr(caixas, "record_audit", audit)
+
+    response = client.post("/api/caixas/4/abrir", json={"valor_abertura": 10, "id_evento": 3})
+
+    assert response.status_code == 400
+    assert "não corresponde à data operacional permitida" in response.json()["detail"]
+    service.abrir_movimento.assert_not_called()
+    audit.assert_not_called()
+    db.conn.commit.assert_not_called()
 
 
 def test_fechamento_auditado_so_quando_altera(api, monkeypatch):

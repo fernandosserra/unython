@@ -61,6 +61,11 @@ def abrir_movimento(
         ev_id = ev.id
 
     try:
+        evento = service.validar_evento_abertura(ev_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    try:
         db.execute_query("SELECT id FROM caixas WHERE id = %s FOR UPDATE", (caixa_id,), fetch_one=True)
         if service.buscar_movimento_ativo(caixa_id):
             raise HTTPException(status_code=400, detail="Já existe movimento aberto para este caixa.")
@@ -69,7 +74,13 @@ def abrir_movimento(
             raise HTTPException(status_code=400, detail="Não foi possível abrir movimento.")
         record_audit(db, user_id=current_user.id, acao="abrir_caixa",
                      entidade="movimento_caixa", entidade_id=mid,
-                     detalhes={"caixa_id": caixa_id, "evento_id": ev_id, "valor_abertura": str(val)},
+                     detalhes={
+                         "caixa_id": caixa_id,
+                         "evento_id": ev_id,
+                         "evento_nome": evento.nome,
+                         "evento_data": str(evento.data_evento),
+                         "valor_abertura": str(val),
+                     },
                      request_id=request.state.request_id)
         db.conn.commit()
     except Exception:

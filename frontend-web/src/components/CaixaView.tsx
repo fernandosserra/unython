@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Wallet,
   Calendar,
@@ -27,7 +27,10 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const { user } = useAuthStore();
   const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const [caixas, setCaixas] = useState<Caixa[]>([]);
+  const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
+  const [dataOperacional, setDataOperacional] = useState<string | null>(null);
   const [selectedCaixaId, setSelectedCaixaId] = useState<number | null>(null);
+  const [selectedEventoId, setSelectedEventoId] = useState<number | null>(activeEvento?.id ?? null);
   const [valorAbertura, setValorAbertura] = useState<number>(50);
   const [nomeNovoEvento, setNomeNovoEvento] = useState('');
   const [tipoNovoEvento, setTipoNovoEvento] = useState('Atendimento');
@@ -36,15 +39,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchCaixas = async (): Promise<boolean> => {
+  const fetchCaixas = useCallback(async (): Promise<boolean> => {
     try {
       const resp = await apiClient.get('/caixas/');
       const list: Caixa[] = resp.data || [];
       setCaixas(list);
       setMessage(null);
-      if (list.length > 0 && !selectedCaixaId) {
-        setSelectedCaixaId(list[0].id);
-      }
+      setSelectedCaixaId((currentId) => currentId || list[0]?.id || null);
       return true;
     } catch (err) {
       console.error('Erro ao carregar caixas:', err);
@@ -54,11 +55,43 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       });
       return false;
     }
-  };
+  }, []);
+
+  const activeEventoId = activeEvento?.id;
+  const fetchEventos = useCallback(async () => {
+    try {
+      const [eventosResp, dataResp] = await Promise.all([
+        apiClient.get('/eventos/ativos-e-futuros'),
+        apiClient.get('/eventos/data-operacional'),
+      ]);
+      const list: Evento[] = eventosResp.data || [];
+      const dataPermitida: string | null = dataResp.data?.data_operacional ?? null;
+      setEventosDisponiveis(list);
+      setDataOperacional(dataPermitida);
+      setSelectedEventoId((currentId) => {
+        if (activeEventoId && list.some((evento) => evento.id === activeEventoId)) {
+          return activeEventoId;
+        }
+        if (currentId && list.some((evento) => evento.id === currentId)) {
+          return currentId;
+        }
+        return list.find((evento) => evento.data_evento === dataPermitida)?.id
+          ?? list[0]?.id
+          ?? null;
+      });
+    } catch (err) {
+      console.error('Erro ao carregar eventos disponíveis:', err);
+      setMessage({
+        type: 'error',
+        text: `Não foi possível carregar os ${aliasEvento.toLowerCase()} disponíveis.`,
+      });
+    }
+  }, [activeEventoId, aliasEvento]);
 
   useEffect(() => {
-    fetchCaixas();
-  }, []);
+    void fetchCaixas();
+    void fetchEventos();
+  }, [fetchCaixas, fetchEventos]);
 
   const handleAbrirEvento = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,7 +105,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       });
       setMessage({ type: 'success', text: `${aliasEvento} "${nomeFinal}" aberto com sucesso!` });
       setNomeNovoEvento('');
-      await onRefreshState();
+      await Promise.all([onRefreshState(), fetchEventos()]);
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.detail || `Erro ao abrir ${aliasEvento}.` });
     } finally {
@@ -102,8 +135,16 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       alert('Selecione um ponto de caixa.');
       return;
     }
-    if (!activeEvento) {
-      alert(`É necessário ter ${aliasEvento} aberto antes de abrir a sessão de caixa.`);
+    const eventoSelecionado = eventosDisponiveis.find((evento) => evento.id === selectedEventoId);
+    if (!eventoSelecionado) {
+      setMessage({ type: 'error', text: `Selecione um ${aliasEvento.toLowerCase()} disponível.` });
+      return;
+    }
+    if (!dataOperacional || eventoSelecionado.data_evento !== dataOperacional) {
+      setMessage({
+        type: 'error',
+        text: `A data do ${aliasEvento.toLowerCase()} (${eventoSelecionado.data_evento}) não corresponde à data operacional permitida${dataOperacional ? ` (${dataOperacional})` : ''}.`,
+      });
       return;
     }
 
@@ -113,7 +154,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       await apiClient.post(`/caixas/${selectedCaixaId}/abrir`, {
         usuario_id: user?.id || 1,
         valor_abertura: Number(valorAbertura) || 0,
-        id_evento: activeEvento.id,
+        id_evento: eventoSelecionado.id,
       });
       setMessage({ type: 'success', text: 'Sessão de caixa aberta com sucesso!' });
       await onRefreshState();
@@ -123,6 +164,11 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       setIsLoading(false);
     }
   };
+
+  const eventoSelecionado = eventosDisponiveis.find((evento) => evento.id === selectedEventoId);
+  const dataEventoIncompativel = Boolean(
+    eventoSelecionado && (!dataOperacional || eventoSelecionado.data_evento !== dataOperacional),
+  );
 
   const handleFecharCaixa = async () => {
     if (!activeMovimento) return;
@@ -326,6 +372,34 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Selecione o {aliasEvento.toLowerCase()} da operação
+                    </label>
+                    <select
+                      value={selectedEventoId || ''}
+                      onChange={(e) => setSelectedEventoId(Number(e.target.value) || null)}
+                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                    >
+                      <option value="">Selecione um {aliasEvento.toLowerCase()}</option>
+                      {eventosDisponiveis.map((evento) => (
+                        <option key={evento.id} value={evento.id}>
+                          {evento.nome} — {evento.data_evento} ({evento.status})
+                        </option>
+                      ))}
+                    </select>
+                    {dataEventoIncompativel ? (
+                      <p role="alert" className="text-[11px] text-rose-700 font-medium mt-1">
+                        A data deste {aliasEvento.toLowerCase()} não é a data operacional de hoje.
+                        Selecione um evento de {dataOperacional ?? 'hoje'} para abrir o caixa.
+                      </p>
+                    ) : !eventosDisponiveis.length ? (
+                      <p className="text-[11px] text-amber-600 font-medium mt-1">
+                        Nenhum {aliasEvento.toLowerCase()} aberto ou pré-cadastrado disponível.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Selecione o Ponto de Caixa
                     </label>
                     <select
@@ -357,17 +431,12 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                   <button
                     type="button"
                     onClick={handleAbrirCaixa}
-                    disabled={isLoading || !activeEvento}
+                    disabled={isLoading || !selectedCaixaId || !eventoSelecionado || !dataOperacional || dataEventoIncompativel}
                     className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs flex items-center justify-center gap-2"
                   >
                     <Unlock className="w-4 h-4" />
                     <span>Abrir Caixa para Vendas</span>
                   </button>
-                  {!activeEvento && (
-                    <p className="text-[11px] text-amber-600 font-medium text-center">
-                      * Abra {aliasEvento} ao lado antes de abrir o caixa.
-                    </p>
-                  )}
                 </div>
               )}
             </div>

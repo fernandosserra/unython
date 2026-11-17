@@ -3,11 +3,12 @@
 # sob os termos da GNU General Public License como publicada pela Free Software Foundation,
 # na versao 3 da Licenca, ou (a seu criterio) qualquer versao posterior.
 # src/modules/caixas.py
-from typing import List, Optional
+from datetime import date
 from decimal import Decimal
+from typing import List, Optional
 
 from src.utils.database_manager import DatabaseManager
-from src.utils.models import Caixa, MovimentoCaixa
+from src.utils.models import Caixa, Evento, MovimentoCaixa
 
 
 class CaixaService:
@@ -50,6 +51,28 @@ class CaixaService:
     # -----------------------------------------------------------
     # 2. Gestão de Movimento de Caixa (Abertura/Fechamento)
     # -----------------------------------------------------------
+
+    def validar_evento_abertura(self, id_evento: int) -> Evento:
+        """Retorna o evento elegível para abertura de caixa na data operacional atual."""
+        columns, data = self.db.execute_query(
+            "SELECT id, nome, data_evento, tipo, status FROM eventos WHERE id = %s",
+            (id_evento,),
+            fetch_one=True,
+        )
+        if not data:
+            raise ValueError("Evento pré-cadastrado não encontrado.")
+
+        evento = Evento(**dict(zip(columns, data)))
+        if evento.status not in ("Aberto", "Agendado"):
+            raise ValueError("O evento selecionado não está aberto nem agendado.")
+
+        data_operacional = date.today()
+        if evento.data_evento != data_operacional:
+            raise ValueError(
+                f"A data do evento ({evento.data_evento}) não corresponde "
+                f"à data operacional permitida ({data_operacional})."
+            )
+        return evento
 
     def abrir_movimento(self, id_caixa: int, id_usuario_abertura: int, valor_abertura: Decimal, id_evento: Optional[int] = None, *, commit: bool = True) -> Optional[int]:
         """

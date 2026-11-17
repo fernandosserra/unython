@@ -13,6 +13,12 @@ EVENTOS_ATENDIMENTOS_WRITE = require_module("eventos", "atendimentos")
 EVENTOS_CAIXA_WRITE = require_module("eventos", "caixa")
 
 
+@router.get("/data-operacional", dependencies=[Depends(EVENTOS_READ)])
+def obter_data_operacional():
+    """Retorna a data usada pelo servidor para validar operações do dia."""
+    return {"data_operacional": date.today().isoformat()}
+
+
 @router.get("/aberto", dependencies=[Depends(EVENTO_ABERTO_READ)])
 def evento_aberto(db: DBDependency):
     service = EventoService(db)
@@ -24,7 +30,7 @@ def evento_aberto(db: DBDependency):
 
 @router.get("/ativos-e-futuros", dependencies=[Depends(EVENTOS_READ)])
 def listar_eventos_ativos_e_futuros(db: DBDependency):
-    """Retorna eventos abertos e agendados com antecedência."""
+    """Retorna eventos abertos e pré-cadastrados para seleção por outros módulos."""
     service = EventoService(db)
     evs = service.buscar_eventos_futuros_ou_abertos()
     return [e.__dict__ for e in evs]
