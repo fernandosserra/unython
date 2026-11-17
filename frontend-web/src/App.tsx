@@ -34,7 +34,7 @@ export function App() {
   const canReadCaixa = allowedTabs.includes('caixa') || allowedTabs.includes('pdv');
 
   // Carrega status da sessão ativa (Evento aberto + Caixa ativo)
-  const refreshActiveSession = useCallback(async () => {
+  const refreshActiveSession = useCallback(async (throwOnError = false) => {
     const version = ++sessionVersion.current;
     if (!isAuthenticated || !authReady || user?.require_password_change || configStatus !== 'ready') return;
 
@@ -76,6 +76,7 @@ export function App() {
       if (version === sessionVersion.current) setActiveMovimento(foundMov);
     } catch (err) {
       console.error('Erro ao sincronizar sessão:', err);
+      if (throwOnError) throw err;
     }
   }, [isAuthenticated, authReady, user?.require_password_change, configStatus, canReadEvento, canReadCaixa]);
 
@@ -96,7 +97,11 @@ export function App() {
 
   const openScheduledEvent = async (id: number) => {
     await apiClient.post(`/eventos/${id}/iniciar`);
-    await refreshActiveSession();
+    try {
+      await refreshActiveSession(true);
+    } catch {
+      throw new Error('Evento aberto, mas não foi possível sincronizar a sessão. Atualize a página.');
+    }
   };
 
   const closeActiveEvent = async (): Promise<boolean> => {
@@ -251,6 +256,7 @@ export function App() {
             activeEvento={activeEvento}
             activeMovimento={activeMovimento}
             onRefreshState={refreshActiveSession}
+            onOpenEvento={openScheduledEvent}
             onCloseEvento={closeActiveEvent}
           />
         )}

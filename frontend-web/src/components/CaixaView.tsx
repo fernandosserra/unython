@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import axios from 'axios';
 import {
   Wallet,
   Calendar,
@@ -17,6 +18,7 @@ interface CaixaViewProps {
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
   onRefreshState: () => Promise<void>;
+  onOpenEvento: (id: number) => Promise<void>;
   onCloseEvento: () => Promise<boolean>;
 }
 
@@ -24,6 +26,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   activeEvento,
   activeMovimento,
   onRefreshState,
+  onOpenEvento,
   onCloseEvento,
 }) => {
   const { user } = useAuthStore();
@@ -31,8 +34,12 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const [caixas, setCaixas] = useState<Caixa[]>([]);
   const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
   const [dataOperacional, setDataOperacional] = useState<string | null>(null);
+  const [eventosError, setEventosError] = useState(false);
   const [selectedCaixaId, setSelectedCaixaId] = useState<number | null>(null);
   const [selectedEventoId, setSelectedEventoId] = useState<number | null>(activeEvento?.id ?? null);
+  const [selectedAgendadoId, setSelectedAgendadoId] = useState<number | null>(null);
+  const [modoEvento, setModoEvento] = useState<'agendado' | 'extra'>('agendado');
+  const latestEventosRequest = useRef(0);
   const [valorAbertura, setValorAbertura] = useState<number>(50);
   const [nomeNovoEvento, setNomeNovoEvento] = useState('');
   const [tipoNovoEvento, setTipoNovoEvento] = useState('Atendimento');
@@ -61,17 +68,21 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
 
   const activeEventoId = activeEvento?.id;
   const fetchEventos = useCallback(async () => {
+    const request = ++latestEventosRequest.current;
     try {
       const [eventosResp, dataResp] = await Promise.all([
         apiClient.get('/eventos/ativos-e-futuros'),
         apiClient.get('/eventos/data-operacional'),
       ]);
+      if (request !== latestEventosRequest.current) return;
       const list: Evento[] = eventosResp.data || [];
       const dataPermitida: string | null = dataResp.data?.data_operacional ?? null;
+      if (!dataPermitida) throw new Error('Data operacional não informada pelo servidor.');
       setEventosDisponiveis(list);
       setDataOperacional(dataPermitida);
+      setEventosError(false);
       setSelectedEventoId((currentId) => {
-        if (activeEventoId && list.some((evento) => evento.id === activeEventoId)) {
+        if (activeEventoId) {
           return activeEventoId;
         }
         if (currentId && list.some((evento) => evento.id === currentId)) {
@@ -82,21 +93,55 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
           ?? null;
       });
     } catch (err) {
+      if (request !== latestEventosRequest.current) return;
       console.error('Erro ao carregar eventos disponíveis:', err);
-      setMessage({
-        type: 'error',
-        text: `Não foi possível carregar os ${aliasEvento.toLowerCase()} disponíveis.`,
-      });
+      setDataOperacional(null);
+      setEventosError(true);
     }
-  }, [activeEventoId, aliasEvento]);
+  }, [activeEventoId]);
+
+  useEffect(() => {
+    if (activeEventoId) setSelectedEventoId(activeEventoId);
+  }, [activeEventoId]);
 
   useEffect(() => {
     void fetchCaixas();
+  }, [fetchCaixas]);
+
+  useEffect(() => {
     void fetchEventos();
-  }, [fetchCaixas, fetchEventos]);
+    return () => { latestEventosRequest.current++; };
+  }, [fetchEventos]);
+
+  const eventosAgendados = eventosDisponiveis.filter((evento) => evento.status === 'Agendado');
+  const eventosHoje = eventosAgendados.filter((evento) => evento.data_evento === dataOperacional);
+  const agendadoSelecionado = eventosHoje.find((evento) => evento.id === selectedAgendadoId) ?? eventosHoje[0];
+  const eventosCaixa = activeEvento
+    ? [activeEvento, ...eventosDisponiveis.filter((evento) => evento.id !== activeEvento.id)]
+    : eventosDisponiveis;
+
+  const handleAbrirAgendado = async () => {
+    if (!agendadoSelecionado || !dataOperacional) return;
+    setIsLoading(true);
+    setMessage(null);
+    try {
+      await onOpenEvento(agendadoSelecionado.id);
+      setMessage({ type: 'success', text: `${aliasEvento} "${agendadoSelecionado.nome}" aberto com sucesso!` });
+    } catch (error) {
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      setMessage({ type: 'error', text: typeof detail === 'string' ? detail : !axios.isAxiosError(error) && error instanceof Error ? error.message : `Erro ao abrir ${aliasEvento}.` });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleAbrirEvento = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!dataOperacional) {
+      setMessage({ type: 'error', text: 'Não foi possível verificar os eventos da data operacional.' });
+      return;
+    }
+    if (eventosHoje.length > 0 && !window.confirm(`Já existe ${aliasEvento.toLowerCase()} agendado para a data operacional. Criar um evento extra mesmo assim?`)) return;
     setIsLoading(true);
     setMessage(null);
     try {
@@ -136,7 +181,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       alert('Selecione um ponto de caixa.');
       return;
     }
-    const eventoSelecionado = eventosDisponiveis.find((evento) => evento.id === selectedEventoId);
+    const eventoSelecionado = eventosCaixa.find((evento) => evento.id === selectedEventoId);
     if (!eventoSelecionado) {
       setMessage({ type: 'error', text: `Selecione um ${aliasEvento.toLowerCase()} disponível.` });
       return;
@@ -166,7 +211,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
     }
   };
 
-  const eventoSelecionado = eventosDisponiveis.find((evento) => evento.id === selectedEventoId);
+  const eventoSelecionado = eventosCaixa.find((evento) => evento.id === selectedEventoId);
   const dataEventoIncompativel = Boolean(
     eventoSelecionado && (!dataOperacional || eventoSelecionado.data_evento !== dataOperacional),
   );
@@ -229,6 +274,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
 
         {message && (
           <div
+            role={message.type === 'error' ? 'alert' : 'status'}
             className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-3 ${
               message.type === 'success'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -241,6 +287,12 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
               <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
             )}
             <span>{message.text}</span>
+          </div>
+        )}
+        {eventosError && (
+          <div role="alert" className="p-4 rounded-2xl border border-rose-200 bg-rose-50 text-sm font-semibold text-rose-800">
+            Não foi possível carregar os {aliasEvento.toLowerCase()} disponíveis.{' '}
+            <button type="button" onClick={() => void fetchEventos()} className="underline">Tentar novamente</button>
           </div>
         )}
 
@@ -274,39 +326,78 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                   </p>
                 </div>
               ) : (
-                <form onSubmit={handleAbrirEvento} className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Nome: {aliasEvento}
-                    </label>
-                    <input
-                      type="text"
-                      value={nomeNovoEvento}
-                      onChange={(e) => setNomeNovoEvento(e.target.value)}
-                      placeholder="Ex: Bazar Beneficente de Sábado"
-                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
-                    />
+                <div className="space-y-3">
+                  <div role="group" className="flex gap-2" aria-label="Tipo de abertura de evento">
+                    <button type="button" disabled={isLoading} aria-pressed={modoEvento === 'agendado'} onClick={() => setModoEvento('agendado')}
+                      className={`min-h-11 flex-1 rounded-xl px-2 text-xs font-bold ${modoEvento === 'agendado' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                      {aliasEvento} Agendado
+                    </button>
+                    <button type="button" disabled={isLoading} aria-pressed={modoEvento === 'extra'} onClick={() => setModoEvento('extra')}
+                      className={`min-h-11 flex-1 rounded-xl px-2 text-xs font-bold ${modoEvento === 'extra' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>
+                      Criar {aliasEvento} Extra
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                      Tipo de Operação
-                    </label>
-                    <input
-                      type="text"
-                      value={tipoNovoEvento}
-                      onChange={(e) => setTipoNovoEvento(e.target.value)}
-                      placeholder="Ex: Encontro, atendimento, evento beneficente"
-                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    Abrir {aliasEvento}
-                  </button>
-                </form>
+                  {modoEvento === 'agendado' ? (
+                    <div className="space-y-3">
+                      <label className="block text-xs font-bold text-slate-700 uppercase">
+                        {aliasEvento} pré-agendado
+                        <select
+                          value={agendadoSelecionado?.id ?? ''}
+                          onChange={(e) => setSelectedAgendadoId(Number(e.target.value) || null)}
+                          className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 text-sm font-medium text-slate-900"
+                        >
+                          {!agendadoSelecionado && <option value="">{dataOperacional ? 'Nenhum evento para a data operacional' : 'Data operacional indisponível'}</option>}
+                          {eventosHoje.map((evento) => (
+                            <option key={evento.id} value={evento.id}>{evento.nome} — {evento.data_evento} (hoje)</option>
+                          ))}
+                          {eventosAgendados.filter((evento) => evento.data_evento !== dataOperacional).map((evento) => (
+                            <option key={evento.id} value={evento.id} disabled>{evento.nome} — {evento.data_evento} (outra data)</option>
+                          ))}
+                        </select>
+                      </label>
+                      {dataOperacional && !eventosHoje.length && <p className="text-xs text-amber-700">Nenhum {aliasEvento.toLowerCase()} agendado para a data operacional ({dataOperacional}).</p>}
+                      <button type="button" onClick={() => void handleAbrirAgendado()} disabled={isLoading || !agendadoSelecionado || !dataOperacional}
+                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs sm:text-sm font-bold disabled:opacity-50">
+                        Abrir {aliasEvento} Agendado
+                      </button>
+                    </div>
+                  ) : (
+                    <form onSubmit={handleAbrirEvento} className="space-y-3">
+                      {eventosHoje.length > 0 && <p className="text-xs text-amber-700">Já existe {aliasEvento.toLowerCase()} agendado para a data operacional.</p>}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                          Nome: {aliasEvento}
+                        </label>
+                        <input
+                          type="text"
+                          value={nomeNovoEvento}
+                          onChange={(e) => setNomeNovoEvento(e.target.value)}
+                          placeholder="Ex: Bazar Beneficente de Sábado"
+                          className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                          Tipo de Operação
+                        </label>
+                        <input
+                          type="text"
+                          value={tipoNovoEvento}
+                          onChange={(e) => setTipoNovoEvento(e.target.value)}
+                          placeholder="Ex: Encontro, atendimento, evento beneficente"
+                          className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isLoading || !dataOperacional}
+                        className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        Abrir {aliasEvento} Extra
+                      </button>
+                    </form>
+                  )}
+                </div>
               )}
             </div>
 
@@ -381,7 +472,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                       className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
                     >
                       <option value="">Selecione um {aliasEvento.toLowerCase()}</option>
-                      {eventosDisponiveis.map((evento) => (
+                      {eventosCaixa.map((evento) => (
                         <option key={evento.id} value={evento.id}>
                           {evento.nome} — {evento.data_evento} ({evento.status})
                         </option>

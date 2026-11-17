@@ -54,7 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       await action();
     } catch (error) {
       const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
-      setEventError(typeof detail === 'string' ? detail : 'Não foi possível atualizar o evento.');
+      setEventError(typeof detail === 'string' ? detail : !axios.isAxiosError(error) && error instanceof Error ? error.message : 'Não foi possível atualizar o evento.');
     } finally { setEventBusy(false); }
   };
   const navItems = [
