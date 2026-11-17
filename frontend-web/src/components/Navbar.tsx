@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   ShoppingBag, Users, Wallet, Settings, LogOut, HeartHandshake,
-  Smartphone, KeyRound, MoreHorizontal,
+  Smartphone, KeyRound, MoreHorizontal, Package,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import { useOrgStore } from '../store/useOrgStore';
@@ -28,6 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'agendamentos' as const, label: 'Atendimentos', mobile: 'Atend.', icon: Users },
     { id: 'caixa' as const, label: 'Caixa', mobile: 'Caixa', icon: Wallet },
     { id: 'doacoes' as const, label: 'Doações', mobile: 'Doações', icon: HeartHandshake },
+    { id: 'estoque' as const, label: 'Logística', mobile: 'Estoque', icon: Package },
     { id: 'admin' as const, label: 'Administração', mobile: 'Admin', icon: Settings },
   ].filter((item) => availableTabs(user, config).includes(item.id));
 

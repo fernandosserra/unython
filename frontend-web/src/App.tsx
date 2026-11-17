@@ -227,6 +227,9 @@ export function App() {
         {effectiveTab === 'admin' && (
           <AdminView activeEvento={activeEvento} onRefreshState={refreshActiveSession} />
         )}
+        {effectiveTab === 'estoque' && (
+          <AdminView activeEvento={activeEvento} onRefreshState={refreshActiveSession} initialTab="estoque" />
+        )}
         {effectiveTab === 'doacoes' && <DoacoesView />}
       </main>
 

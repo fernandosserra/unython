@@ -201,6 +201,10 @@ class PermissoesUpdate(BaseModel):
         return value
 
 
+class UsuarioUpdate(RoleUpdate, PermissoesUpdate):
+    permissoes: List[Literal['pdv', 'caixa', 'atendimentos', 'doacoes', 'estoque', 'relatorios', 'eventos']]
+
+
 # --- 2. MODELOS DE SAIDA (Para GET) ---
 
 class ItemResponse(ItemBase):

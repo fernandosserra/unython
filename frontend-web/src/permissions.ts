@@ -1,7 +1,7 @@
 import type { OrganizacaoConfig, Usuario } from './types';
 
 export type Permissao = 'pdv' | 'caixa' | 'atendimentos' | 'doacoes' | 'estoque' | 'relatorios' | 'eventos';
-export type AppTab = 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes';
+export type AppTab = 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes' | 'estoque';
 
 export const permissionGroups: { title: string; items: { id: Permissao; label: string }[] }[] = [
   { title: 'Operação', items: [{ id: 'pdv', label: 'PDV / Vendas' }, { id: 'eventos', label: 'Eventos' }] },
@@ -11,6 +11,16 @@ export const permissionGroups: { title: string; items: { id: Permissao; label: s
 ];
 
 export const legacyPermissions: Permissao[] = ['pdv', 'caixa', 'atendimentos', 'doacoes'];
+
+export const permissionPresets: { label: string; permissions: Permissao[] }[] = [
+  { label: 'Perfil Recepção', permissions: ['atendimentos'] },
+  { label: 'Perfil Lanchonete / Caixa', permissions: ['pdv', 'caixa'] },
+  { label: 'Perfil Estoque', permissions: ['estoque'] },
+];
+
+export function addPermissions(selected: string[], permissions: readonly Permissao[]): string[] {
+  return [...new Set([...selected, ...permissions])];
+}
 
 export function hasPermission(user: Usuario | null, permission: Permissao): boolean {
   if (!user || user.status !== 'Ativo') return false;
@@ -30,6 +40,7 @@ export function availableTabs(user: Usuario | null, config: OrganizacaoConfig): 
   if (flags.habilitar_atendimentos !== false && hasPermission(user, 'atendimentos')) tabs.push('agendamentos');
   if (hasPermission(user, 'caixa')) tabs.push('caixa');
   if (flags.habilitar_doacoes !== false && hasPermission(user, 'doacoes')) tabs.push('doacoes');
+  if (hasPermission(user, 'estoque')) tabs.push('estoque');
   if (user?.role === 'Administrador' && user.status === 'Ativo' ||
       hasPermission(user, 'estoque') || hasPermission(user, 'relatorios') ||
       hasPermission(user, 'eventos') ||

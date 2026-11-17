@@ -5,7 +5,7 @@ from src.utils.dependencies import DBDependency, require_role
 from src.utils.audit import record_audit
 from src.modules.usuario import UsuarioService
 from src.utils.models import Usuario
-from src.utils.schemas import UsuarioResponse, UsuarioCreate, RoleUpdate, PermissoesUpdate
+from src.utils.schemas import UsuarioResponse, UsuarioCreate, UsuarioUpdate, RoleUpdate, PermissoesUpdate
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -89,6 +89,45 @@ def criar_usuario(
         db.conn.rollback()
         raise
     return {"id": uid}
+
+
+@router.put("/{user_id}")
+def atualizar_usuario(
+    user_id: int,
+    payload: UsuarioUpdate,
+    db: DBDependency,
+    request: Request,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
+    """Atualiza papel, função, status e permissões em uma única transação."""
+    service = UsuarioService(db)
+    try:
+        db.execute_query("SELECT id FROM usuarios WHERE id = %s FOR UPDATE", (user_id,), fetch_one=True)
+        anterior = service.buscar_usuario_por_id(user_id)
+        if not anterior:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado.")
+        funcao = payload.funcao or payload.role
+        if not service.atualizar_role_status(user_id, payload.role, payload.status, funcao, commit=False):
+            raise HTTPException(status_code=400, detail="Não foi possível atualizar usuário.")
+        if not service.atualizar_permissoes(user_id, payload.permissoes, commit=False):
+            raise HTTPException(status_code=400, detail="Não foi possível atualizar permissões.")
+        record_audit(db, user_id=current_user.id, acao="alterar_role_status",
+                     entidade="usuario", entidade_id=user_id,
+                     detalhes={"role_anterior": anterior.role, "role_nova": payload.role,
+                               "status_anterior": anterior.status, "status_novo": payload.status,
+                               "funcao_anterior": anterior.funcao, "funcao_nova": funcao},
+                     request_id=request.state.request_id)
+        if anterior.permissoes != payload.permissoes:
+            record_audit(db, user_id=current_user.id, acao="alterar_permissoes",
+                         entidade="usuario", entidade_id=user_id,
+                         detalhes={"permissoes_anteriores": anterior.permissoes,
+                                   "permissoes_novas": payload.permissoes},
+                         request_id=request.state.request_id)
+        db.conn.commit()
+    except Exception:
+        db.conn.rollback()
+        raise
+    return {"id": user_id, "role": payload.role, "status": payload.status, "permissoes": payload.permissoes}
 
 
 @router.put("/{user_id}/role")

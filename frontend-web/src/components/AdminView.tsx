@@ -27,18 +27,20 @@ import { FacilitadoresView } from './FacilitadoresView';
 import { AtividadesView } from './AtividadesView';
 import { OrganizacaoConfigView } from './OrganizacaoConfigView';
 import type { Categoria, Item, Usuario, Evento } from '../types';
-import { hasPermission, legacyPermissions, permissionGroups } from '../permissions';
+import { hasPermission, legacyPermissions } from '../permissions';
+import { PermissionMatrix } from './PermissionMatrix';
 
 interface AdminViewProps {
   activeEvento: Evento | null;
   onRefreshState: () => Promise<void>;
+  initialTab?: AdminTab;
 }
 
 type AdminTab = 'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades' | 'configuracao';
 
-export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState }) => {
-  const { user, setUser, setNotice, logout, refreshUser } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<AdminTab>('produtos');
+export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState, initialTab = 'produtos' }) => {
+  const { user, setUser, setNotice, logout } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const termos = useOrgStore((state) => state.config);
   const isAdmin = user?.role === 'Administrador';
   const attendanceEnabled = (termos as typeof termos & { habilitar_atendimentos?: boolean }).habilitar_atendimentos !== false;
@@ -103,11 +105,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   const [roleUser, setRoleUser] = useState<'Administrador' | 'Operador' | 'Recepcionista' | 'Vendedor'>('Vendedor');
   const [senhaUser, setSenhaUser] = useState('');
   const [requirePasswordChange, setRequirePasswordChange] = useState(true);
+  const [newPermissions, setNewPermissions] = useState<string[]>([]);
   const [editingUser, setEditingUser] = useState<Usuario | null>(null);
   const [editingFuncao, setEditingFuncao] = useState('');
   const [editingRole, setEditingRole] = useState<Usuario['role']>('Vendedor');
   const [editingStatus, setEditingStatus] = useState<Usuario['status']>('Ativo');
-  const [editingPermissions, setEditingPermissions] = useState<string[] | null>(null);
+  const [editingPermissions, setEditingPermissions] = useState<string[]>([]);
 
   // Feedback e Modal
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -259,12 +262,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         status: 'Ativo',
         senha: senhaUser,
         require_password_change: requirePasswordChange,
+        permissoes: newPermissions,
       });
       showFeedback('success', `Usuário "${nomeUser}" cadastrado!`);
       setNomeUser('');
       setEmailUser('');
       setSenhaUser('');
       setRequirePasswordChange(true);
+      setNewPermissions([]);
       await loadUsers();
     } catch (err: any) {
       showFeedback('error', err.response?.data?.detail || 'Erro ao cadastrar usuário.');
@@ -279,10 +284,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
 
     setIsLoading(true);
     try {
-      await apiClient.put(`/usuarios/${editingUser.id}/role`, {
+      await apiClient.put(`/usuarios/${editingUser.id}`, {
         role: editingRole,
         status: editingStatus,
         funcao: editingFuncao,
+        permissoes: editingPermissions,
       });
       if (editingUser.id === user?.id) {
         if (editingStatus === 'Inativo') {
@@ -290,7 +296,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           logout();
           return;
         }
-        setUser({ ...user, role: editingRole, status: editingStatus, funcao: editingFuncao });
+        setUser({ ...user, role: editingRole, status: editingStatus, funcao: editingFuncao, permissoes: editingPermissions });
         if (editingRole !== 'Administrador') return;
       }
       showFeedback('success', `Usuário "${editingUser.nome}" atualizado.`);
@@ -308,23 +314,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
     setEditingFuncao(usuario.funcao || '');
     setEditingRole(usuario.role);
     setEditingStatus(usuario.status);
-    setEditingPermissions(usuario.permissoes ?? null);
-  };
-
-  const handleSavePermissions = async () => {
-    if (!editingUser || editingUser.role === 'Administrador') return;
-    setIsLoading(true);
-    try {
-      await apiClient.put(`/usuarios/${editingUser.id}/permissoes`, { permissoes: editingPermissions });
-      if (editingUser.id === user?.id) await refreshUser(true);
-      showFeedback('success', 'Permissões atualizadas.');
-      await loadUsers();
-    } catch (err: unknown) {
-      console.error('Erro ao atualizar permissões:', err);
-      showFeedback('error', 'Erro ao atualizar permissões.');
-    } finally {
-      setIsLoading(false);
-    }
+    setEditingPermissions(usuario.permissoes ?? [...legacyPermissions]);
   };
 
   const filteredProdutos = itens.filter((i) =>
@@ -793,6 +783,12 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                     </div>
                   </div>
 
+                  {roleUser === 'Administrador' ? (
+                    <p className="text-xs text-slate-600">Administradores têm acesso irrestrito.</p>
+                  ) : (
+                    <PermissionMatrix value={newPermissions} onChange={setNewPermissions} disabled={isLoading} />
+                  )}
+
                   <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                     <input
                       type="checkbox"
@@ -865,6 +861,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                               </select>
                             </label>
                           </div>
+                          {editingRole === 'Administrador' ? (
+                            <p className="text-xs text-slate-600">Administradores têm acesso irrestrito.</p>
+                          ) : (
+                            <>
+                              {u.permissoes === null && (
+                                <p className="text-xs text-amber-700">Este usuário usa acesso legado. Ao salvar, as seleções serão aplicadas como permissões explícitas e poderão alterar seus acessos.</p>
+                              )}
+                              <PermissionMatrix value={editingPermissions} onChange={setEditingPermissions} disabled={isLoading} />
+                            </>
+                          )}
                           <div className="flex gap-2 pt-1">
                             <button
                               type="submit"
@@ -881,40 +887,6 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                               Cancelar
                             </button>
                           </div>
-                          <fieldset className="space-y-3 border-t border-slate-200 pt-3">
-                            <legend className="font-bold text-sm text-slate-800">Permissões por módulo</legend>
-                            {u.role === 'Administrador' ? (
-                              <p className="text-xs text-slate-600">Administradores têm acesso irrestrito.</p>
-                            ) : (
-                              <>
-                                <label className="flex items-center gap-2 text-xs font-semibold">
-                                  <input type="checkbox" checked={editingPermissions === null}
-                                    onChange={(e) => setEditingPermissions(e.target.checked ? null : [...legacyPermissions])} />
-                                  Usar acesso legado (PDV, caixa, atendimentos e doações)
-                                </label>
-                                {permissionGroups.map((group) => (
-                                  <div key={group.title}>
-                                    <p className="mb-1 text-xs font-bold text-slate-600">{group.title}</p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                      {group.items.map((permission) => (
-                                        <label key={permission.id} className="flex items-center gap-2 text-xs text-slate-700">
-                                          <input type="checkbox"
-                                            checked={(editingPermissions ?? legacyPermissions).includes(permission.id)}
-                                            onChange={(e) => setEditingPermissions((current) => {
-                                              const values = current ?? [...legacyPermissions];
-                                              return e.target.checked ? [...values, permission.id] : values.filter((value) => value !== permission.id);
-                                            })} />
-                                          {permission.label}
-                                        </label>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                <button type="button" disabled={isLoading} onClick={() => void handleSavePermissions()}
-                                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Salvar permissões</button>
-                              </>
-                            )}
-                          </fieldset>
                         </form>
                       ) : (
                         <div className="flex items-center justify-between gap-3">
