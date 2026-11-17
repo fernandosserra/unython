@@ -1203,6 +1203,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       </option>
                     ))}
                   </select>
+                  {orgConfig.exigir_documento_atendimento && selectedPessoaId && !pessoasCadastradas.find((p) => p.id === selectedPessoaId)?.documento?.trim() && (
+                    <p role="alert" className="mt-1 text-xs text-rose-700">A pessoa selecionada precisa ter documento cadastrado para o atendimento.</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1230,12 +1233,13 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Documento / CPF</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Documento / CPF {orgConfig.exigir_documento_atendimento ? '*' : ''}</label>
                       <input
                         type="text"
+                        required={orgConfig.exigir_documento_atendimento}
                         value={formDocumento}
                         onChange={(e) => setFormDocumento(e.target.value)}
-                        placeholder="Opcional"
+                        placeholder={orgConfig.exigir_documento_atendimento ? 'Obrigatório' : 'Opcional'}
                         className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
                       />
                     </div>
@@ -1430,6 +1434,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       </option>
                     ))}
                   </select>
+                  {orgConfig.exigir_documento_atendimento && selectedPessoaId && !pessoasCadastradas.find((p) => p.id === selectedPessoaId)?.documento?.trim() && (
+                    <p role="alert" className="mt-1 text-xs text-rose-700">A pessoa selecionada precisa ter documento cadastrado para o atendimento.</p>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -1457,12 +1464,13 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Documento / CPF</label>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Documento / CPF {orgConfig.exigir_documento_atendimento ? '*' : ''}</label>
                       <input
                         type="text"
+                        required={orgConfig.exigir_documento_atendimento}
                         value={formDocumento}
                         onChange={(e) => setFormDocumento(e.target.value)}
-                        placeholder="Opcional"
+                        placeholder={orgConfig.exigir_documento_atendimento ? 'Obrigatório' : 'Opcional'}
                         className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
                       />
                     </div>

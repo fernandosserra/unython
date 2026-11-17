@@ -70,6 +70,8 @@ A revisão baseline pode ser revertida com `alembic downgrade base`, mas isso re
 
 A configuração da organização inclui `alias_evento`, com padrão `Evento`. O endpoint `GET /api/organizacao/config` permanece acessível; `PUT /api/organizacao/config` exige administrador. Payloads antigos que omitem o campo preservam o valor já configurado.
 
+Em **Usuários & Permissões**, administradores podem conceder módulos individualmente. Administradores têm acesso irrestrito; para usuários antigos, `permissoes = NULL` preserva o acesso operacional legado, enquanto `[]` não concede nenhum módulo. Alterações são registradas em `audit_logs` e aplicadas nas requisições seguintes. As configurações da organização também permitem definir identidade, vocabulário e módulos operacionais; quando exigido, o documento é validado no servidor antes do atendimento.
+
 Ao atualizar uma instalação existente, faça backup do PostgreSQL antes de iniciar a nova versão. Na inicialização, o estoque mínimo dos produtos existentes é definido como zero e os facilitadores anteriormente vinculados a usuários são copiados para o novo cadastro, preservando os agendamentos.
 
 Na Administração, defina o estoque mínimo de cada produto e mantenha seu preço de custo atualizado. O preço pode ficar em branco quando for desconhecido; zero representa um custo conhecido de zero. O relatório de estoque avisa sobre preços ausentes e calcula a reposição com os preços cadastrados, não com um histórico automático de compras.

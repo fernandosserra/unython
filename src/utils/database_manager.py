@@ -266,7 +266,8 @@ class DatabaseManager:
             require_password_change BOOLEAN DEFAULT FALSE,
             role VARCHAR(50) DEFAULT 'Vendedor',
             status VARCHAR(50) DEFAULT 'Ativo',
-            hashed_password VARCHAR(128)
+            hashed_password VARCHAR(128),
+            permissoes JSONB CHECK (permissoes IS NULL OR jsonb_typeof(permissoes) = 'array')
         );
         """
 
@@ -292,7 +293,18 @@ class DatabaseManager:
             termo_atendente VARCHAR(50) NOT NULL DEFAULT 'Médium / Cambone',
             termo_servico VARCHAR(50) NOT NULL DEFAULT 'Passe / Consulta',
             termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço',
-            alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento'
+            alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento',
+            subtitulo TEXT,
+            registro TEXT,
+            cidade_uf TEXT,
+            telefone_contato TEXT,
+            termo_atendente_plural VARCHAR(50) NOT NULL DEFAULT 'Médiuns / Cambones',
+            termo_atividade_plural VARCHAR(50) NOT NULL DEFAULT 'Entidades / Serviços',
+            alias_evento_plural VARCHAR(50) NOT NULL DEFAULT 'Eventos',
+            habilitar_pdv BOOLEAN NOT NULL DEFAULT TRUE,
+            habilitar_atendimentos BOOLEAN NOT NULL DEFAULT TRUE,
+            habilitar_doacoes BOOLEAN NOT NULL DEFAULT TRUE,
+            exigir_documento_atendimento BOOLEAN NOT NULL DEFAULT FALSE
         );
         """
 
@@ -465,6 +477,17 @@ class DatabaseManager:
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS nome_organizacao VARCHAR(150) DEFAULT 'Terreiro Caboclo Pena Branca';
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço';
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS subtitulo TEXT;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS registro TEXT;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS cidade_uf TEXT;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS telefone_contato TEXT;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS termo_atendente_plural VARCHAR(50) NOT NULL DEFAULT 'Médiuns / Cambones';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS termo_atividade_plural VARCHAR(50) NOT NULL DEFAULT 'Entidades / Serviços';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS alias_evento_plural VARCHAR(50) NOT NULL DEFAULT 'Eventos';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS habilitar_pdv BOOLEAN NOT NULL DEFAULT TRUE;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS habilitar_atendimentos BOOLEAN NOT NULL DEFAULT TRUE;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS habilitar_doacoes BOOLEAN NOT NULL DEFAULT TRUE;
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS exigir_documento_atendimento BOOLEAN NOT NULL DEFAULT FALSE;
 
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS numero_senha VARCHAR(20);
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS preferencial BOOLEAN DEFAULT FALSE;

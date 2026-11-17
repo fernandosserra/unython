@@ -29,3 +29,28 @@ def test_bootstrap_cria_e_atualiza_alias_evento(monkeypatch):
                for query in queries if "CREATE TABLE IF NOT EXISTS organizacao_config" in query)
     assert any("ADD COLUMN IF NOT EXISTS alias_evento VARCHAR(50) NOT NULL DEFAULT 'Evento'" in query
                for query in queries)
+
+
+def test_migracao_config_organizacao_offline(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/unython")
+    monkeypatch.setattr(logging.config, "fileConfig", lambda *args, **kwargs: None)
+    output = StringIO()
+    config = Config("alembic.ini", output_buffer=output)
+    command.upgrade(config, "20261117_03:20261117_04_org", sql=True)
+    sql = output.getvalue()
+    assert "ADD COLUMN IF NOT EXISTS exigir_documento_atendimento BOOLEAN NOT NULL DEFAULT FALSE" in sql
+    assert "ADD COLUMN IF NOT EXISTS habilitar_pdv BOOLEAN NOT NULL DEFAULT TRUE" in sql
+    output.seek(0)
+    output.truncate()
+    command.downgrade(config, "20261117_04_org:20261117_03", sql=True)
+    assert "DROP COLUMN IF EXISTS exigir_documento_atendimento" in output.getvalue()
+
+
+def test_bootstrap_config_organizacao(monkeypatch):
+    queries = []
+    monkeypatch.setattr(DatabaseManager, "execute_query", lambda self, query, **kwargs: queries.append(query))
+    DatabaseManager().create_tables()
+    assert any("exigir_documento_atendimento BOOLEAN NOT NULL DEFAULT FALSE" in query
+               for query in queries if "CREATE TABLE IF NOT EXISTS organizacao_config" in query)
+    assert any("ADD COLUMN IF NOT EXISTS exigir_documento_atendimento BOOLEAN NOT NULL DEFAULT FALSE" in query
+               for query in queries)

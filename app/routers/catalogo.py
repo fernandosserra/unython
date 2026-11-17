@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Dict, List, Any
 
-from src.utils.dependencies import DBDependency, require_role
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.modules.categoria import CategoriaService
 from src.modules.item import ItemService
 from src.utils.models import Categoria, Item, Usuario
@@ -13,9 +13,10 @@ router = APIRouter(
     prefix="/catalogo",
     tags=["Catálogo (Grupos de Venda)"]
 )
-ADMIN_ONLY = require_role({"Administrador"})
+CATALOGO_WRITE = require_module("estoque", legacy_admin_only=True)
+CATALOGO_READ = require_module("pdv", "estoque", check_features=False)
 
-@router.get("/grupos", status_code=status.HTTP_200_OK)
+@router.get("/grupos", status_code=status.HTTP_200_OK, dependencies=[Depends(CATALOGO_READ)])
 def get_itens_agrupados_por_categoria(db: DBDependency):
     """Retorna o catálogo de itens agrupados por categoria para o PDV."""
     categoria_service = CategoriaService(db)
@@ -24,18 +25,18 @@ def get_itens_agrupados_por_categoria(db: DBDependency):
 
 
 # --- Categorias ---
-@router.get("/categorias")
+@router.get("/categorias", dependencies=[Depends(CATALOGO_READ)])
 def listar_categorias(db: DBDependency):
     service = CategoriaService(db)
     cats = service.buscar_todas_categorias()
     return [c.__dict__ for c in cats]
 
 
-@router.post("/categorias", status_code=status.HTTP_201_CREATED)
+@router.post("/categorias", status_code=status.HTTP_201_CREATED, dependencies=[Depends(CATALOGO_WRITE)])
 def criar_categoria(
     payload: CategoriaCreate,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     service = CategoriaService(db)
     cat = Categoria(
@@ -50,18 +51,18 @@ def criar_categoria(
 
 
 # --- Itens ---
-@router.get("/itens")
+@router.get("/itens", dependencies=[Depends(CATALOGO_READ)])
 def listar_itens(db: DBDependency):
     item_service = ItemService(db)
     itens = item_service.buscar_todos_itens(apenas_ativos=False)
     return [i.__dict__ for i in itens]
 
 
-@router.post("/itens", status_code=status.HTTP_201_CREATED)
+@router.post("/itens", status_code=status.HTTP_201_CREATED, dependencies=[Depends(CATALOGO_WRITE)])
 def criar_item(
     payload: ItemBase,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     item_service = ItemService(db)
     existente = item_service.buscar_item_por_nome(payload.nome)
@@ -85,12 +86,12 @@ def criar_item(
     return {"id": iid, "nome": payload.nome}
 
 
-@router.put("/itens/{item_id}")
+@router.put("/itens/{item_id}", dependencies=[Depends(CATALOGO_WRITE)])
 def atualizar_item(
     item_id: int,
     payload: ItemBase,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     service = ItemService(db)
     if not service.buscar_item_por_id(item_id):

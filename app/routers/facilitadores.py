@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.utils.dependencies import DBDependency, require_role
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.utils.models import Usuario
 from src.utils.schemas import FacilitadorCreate
 
 router = APIRouter(prefix="/facilitadores", tags=["Facilitadores"])
-ADMIN_ONLY = require_role({"Administrador"})
+FACILITADORES_WRITE = require_module("atendimentos", legacy_admin_only=True)
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(require_module("atendimentos"))])
 def listar_facilitadores(db: DBDependency, apenas_ativos: bool = False):
     query = "SELECT id, nome, especialidade, observacoes, status FROM facilitadores"
     if apenas_ativos:
@@ -17,11 +17,11 @@ def listar_facilitadores(db: DBDependency, apenas_ativos: bool = False):
     return [dict(zip(columns, row)) for row in rows]
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(FACILITADORES_WRITE)])
 def criar_facilitador(
     payload: FacilitadorCreate,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     fid = db.execute_query(
         "INSERT INTO facilitadores (nome, especialidade, observacoes, status) VALUES (%s, %s, %s, %s) RETURNING id",
@@ -31,12 +31,12 @@ def criar_facilitador(
     return {"id": fid}
 
 
-@router.put("/{facilitador_id}")
+@router.put("/{facilitador_id}", dependencies=[Depends(FACILITADORES_WRITE)])
 def atualizar_facilitador(
     facilitador_id: int,
     payload: FacilitadorCreate,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     count = db.execute_query(
         "UPDATE facilitadores SET nome = %s, especialidade = %s, observacoes = %s, status = %s WHERE id = %s",
@@ -48,11 +48,11 @@ def atualizar_facilitador(
     return {"id": facilitador_id}
 
 
-@router.delete("/{facilitador_id}")
+@router.delete("/{facilitador_id}", dependencies=[Depends(FACILITADORES_WRITE)])
 def excluir_facilitador(
     facilitador_id: int,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     count = db.execute_query(
         "UPDATE facilitadores SET status = 'Inativo' WHERE id = %s",

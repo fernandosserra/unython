@@ -27,6 +27,7 @@ import { FacilitadoresView } from './FacilitadoresView';
 import { AtividadesView } from './AtividadesView';
 import { OrganizacaoConfigView } from './OrganizacaoConfigView';
 import type { Categoria, Item, Usuario, Evento } from '../types';
+import { hasPermission, legacyPermissions, permissionGroups } from '../permissions';
 
 interface AdminViewProps {
   activeEvento: Evento | null;
@@ -36,9 +37,23 @@ interface AdminViewProps {
 type AdminTab = 'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades' | 'configuracao';
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState }) => {
-  const { user, setUser, setNotice, logout } = useAuthStore();
+  const { user, setUser, setNotice, logout, refreshUser } = useAuthStore();
   const [activeTab, setActiveTab] = useState<AdminTab>('produtos');
   const termos = useOrgStore((state) => state.config);
+  const isAdmin = user?.role === 'Administrador';
+  const attendanceEnabled = (termos as typeof termos & { habilitar_atendimentos?: boolean }).habilitar_atendimentos !== false;
+  const canAccessTab = (tab: AdminTab) => {
+    switch (tab) {
+      case 'usuarios':
+      case 'configuracao': return isAdmin;
+      case 'produtos':
+      case 'estoque': return hasPermission(user, 'estoque');
+      case 'relatorios': return hasPermission(user, 'relatorios');
+      case 'calendario': return hasPermission(user, 'eventos');
+      case 'facilitadores':
+      case 'atividades': return attendanceEnabled && (isAdmin || user?.permissoes != null) && hasPermission(user, 'atendimentos');
+    }
+  };
   const modules: { title: string; items: { id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }> }[] }[] = [
     { title: 'Operação', items: [{ id: 'calendario' as const, label: `Calendário & ${termos.alias_evento}`, icon: CalendarDays }] },
     { title: 'Pessoas & Atendimentos', items: [
@@ -54,7 +69,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
       { id: 'relatorios' as const, label: 'DRE & Relatórios', icon: BarChart3 },
       { id: 'configuracao' as const, label: 'Configurações da Organização', icon: Settings },
     ] },
-  ];
+  ].map((module) => ({ ...module, items: module.items.filter((item) => canAccessTab(item.id)) })).filter((module) => module.items.length > 0);
+  const effectiveTab = canAccessTab(activeTab) ? activeTab : modules[0]?.items[0]?.id;
 
   // Estados de Produtos e Categorias
   const [itens, setItens] = useState<Item[]>([]);
@@ -91,6 +107,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   const [editingFuncao, setEditingFuncao] = useState('');
   const [editingRole, setEditingRole] = useState<Usuario['role']>('Vendedor');
   const [editingStatus, setEditingStatus] = useState<Usuario['status']>('Ativo');
+  const [editingPermissions, setEditingPermissions] = useState<string[] | null>(null);
 
   // Feedback e Modal
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -134,9 +151,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   };
 
   useEffect(() => {
-    loadCatalogData();
-    loadUsers();
-  }, []);
+    if (effectiveTab === 'produtos' || effectiveTab === 'estoque') void loadCatalogData();
+    if (effectiveTab === 'usuarios' && isAdmin) void loadUsers();
+  // Loads when entering a permitted section, not on every form change.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTab, isAdmin]);
 
   // Salvar Novo Produto
   const handleSaveProduto = async (e: React.FormEvent) => {
@@ -272,6 +291,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           return;
         }
         setUser({ ...user, role: editingRole, status: editingStatus, funcao: editingFuncao });
+        if (editingRole !== 'Administrador') return;
       }
       showFeedback('success', `Usuário "${editingUser.nome}" atualizado.`);
       setEditingUser(null);
@@ -288,6 +308,23 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
     setEditingFuncao(usuario.funcao || '');
     setEditingRole(usuario.role);
     setEditingStatus(usuario.status);
+    setEditingPermissions(usuario.permissoes ?? null);
+  };
+
+  const handleSavePermissions = async () => {
+    if (!editingUser || editingUser.role === 'Administrador') return;
+    setIsLoading(true);
+    try {
+      await apiClient.put(`/usuarios/${editingUser.id}/permissoes`, { permissoes: editingPermissions });
+      if (editingUser.id === user?.id) await refreshUser(true);
+      showFeedback('success', 'Permissões atualizadas.');
+      await loadUsers();
+    } catch (err: unknown) {
+      console.error('Erro ao atualizar permissões:', err);
+      showFeedback('error', 'Erro ao atualizar permissões.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const filteredProdutos = itens.filter((i) =>
@@ -340,7 +377,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           <label className="block lg:hidden text-xs font-bold text-slate-700 mb-3">
             Área da administração
             <select
-              value={activeTab}
+              value={effectiveTab ?? ''}
               onChange={(event) => {
                 const item = modules.flatMap((module) => module.items).find((entry) => entry.id === event.target.value);
                 if (item) setActiveTab(item.id);
@@ -361,8 +398,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                 {module.items.map((item) => {
                   const Icon = item.icon;
                   return <button key={item.id} type="button" onClick={() => setActiveTab(item.id)}
-                    aria-current={activeTab === item.id ? 'page' : undefined}
-                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${activeTab === item.id ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}>
+                    aria-current={effectiveTab === item.id ? 'page' : undefined}
+                    className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm font-semibold transition-colors ${effectiveTab === item.id ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'}`}>
                     <Icon className="h-4 w-4 shrink-0" /><span className="min-w-0 break-words">{item.label}</span>
                   </button>;
                 })}
@@ -371,7 +408,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           </nav>
           <div className="min-w-0">
         {/* Conteúdo da Aba 1: Produtos e Categorias */}
-        {activeTab === 'produtos' && (
+        {effectiveTab === 'produtos' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Formulário Novo Produto */}
@@ -583,7 +620,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         )}
 
         {/* Conteúdo da Aba 2: Movimentação de Estoque */}
-        {activeTab === 'estoque' && (
+        {effectiveTab === 'estoque' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs max-w-xl mx-auto">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
               {estoqueTipo === 'Entrada'
@@ -681,7 +718,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         )}
 
         {/* Conteúdo da Aba 3: Usuários e Voluntários */}
-        {activeTab === 'usuarios' && (
+        {effectiveTab === 'usuarios' && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Formulário Novo Usuário */}
@@ -844,6 +881,40 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                               Cancelar
                             </button>
                           </div>
+                          <fieldset className="space-y-3 border-t border-slate-200 pt-3">
+                            <legend className="font-bold text-sm text-slate-800">Permissões por módulo</legend>
+                            {u.role === 'Administrador' ? (
+                              <p className="text-xs text-slate-600">Administradores têm acesso irrestrito.</p>
+                            ) : (
+                              <>
+                                <label className="flex items-center gap-2 text-xs font-semibold">
+                                  <input type="checkbox" checked={editingPermissions === null}
+                                    onChange={(e) => setEditingPermissions(e.target.checked ? null : [...legacyPermissions])} />
+                                  Usar acesso legado (PDV, caixa, atendimentos e doações)
+                                </label>
+                                {permissionGroups.map((group) => (
+                                  <div key={group.title}>
+                                    <p className="mb-1 text-xs font-bold text-slate-600">{group.title}</p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      {group.items.map((permission) => (
+                                        <label key={permission.id} className="flex items-center gap-2 text-xs text-slate-700">
+                                          <input type="checkbox"
+                                            checked={(editingPermissions ?? legacyPermissions).includes(permission.id)}
+                                            onChange={(e) => setEditingPermissions((current) => {
+                                              const values = current ?? [...legacyPermissions];
+                                              return e.target.checked ? [...values, permission.id] : values.filter((value) => value !== permission.id);
+                                            })} />
+                                          {permission.label}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                <button type="button" disabled={isLoading} onClick={() => void handleSavePermissions()}
+                                  className="rounded-lg bg-slate-800 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Salvar permissões</button>
+                              </>
+                            )}
+                          </fieldset>
                         </form>
                       ) : (
                         <div className="flex items-center justify-between gap-3">
@@ -875,13 +946,13 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         )}
 
         {/* Conteúdo da Aba 4: DRE e Relatórios */}
-        {activeTab === 'relatorios' && (
+        {effectiveTab === 'relatorios' && (
           <RelatoriosView />
         )}
-        {activeTab === 'calendario' && <CalendarioView activeEvento={activeEvento} onRefreshState={onRefreshState} />}
-        {activeTab === 'facilitadores' && <FacilitadoresView />}
-        {activeTab === 'atividades' && <AtividadesView termo={termos.termo_atividade} />}
-        {activeTab === 'configuracao' && <OrganizacaoConfigView />}
+        {effectiveTab === 'calendario' && <CalendarioView activeEvento={activeEvento} onRefreshState={onRefreshState} />}
+        {effectiveTab === 'facilitadores' && <FacilitadoresView />}
+        {effectiveTab === 'atividades' && <AtividadesView termo={termos.termo_atividade} />}
+        {effectiveTab === 'configuracao' && <OrganizacaoConfigView />}
           </div>
         </div>
       </div>

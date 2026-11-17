@@ -2,13 +2,14 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from typing import Optional
 
-from src.utils.dependencies import DBDependency, require_role
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.utils.audit import record_audit
 from src.modules.estoque import EstoqueService
 from src.utils.models import Usuario
 
 router = APIRouter(prefix="/estoque", tags=["Estoque"])
-ADMIN_ONLY = require_role({"Administrador"})
+ESTOQUE_WRITE = require_module("estoque", legacy_admin_only=True)
+ESTOQUE_READ = require_module("estoque", "pdv", check_features=False)
 
 
 class MovimentoEstoqueRequest(BaseModel):
@@ -22,11 +23,11 @@ class MovimentoEstoqueRequest(BaseModel):
         populate_by_name = True
 
 
-@router.post("/entrada", status_code=status.HTTP_201_CREATED)
+@router.post("/entrada", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ESTOQUE_WRITE)])
 def registrar_entrada(
     mov: MovimentoEstoqueRequest,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     service = EstoqueService(db)
     mid = service.entrada_item(
@@ -41,12 +42,12 @@ def registrar_entrada(
     return {"id": mid}
 
 
-@router.post("/saida", status_code=status.HTTP_201_CREATED)
+@router.post("/saida", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ESTOQUE_WRITE)])
 def registrar_saida(
     mov: MovimentoEstoqueRequest,
     db: DBDependency,
     request: Request,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     service = EstoqueService(db)
     try:
@@ -72,14 +73,14 @@ def registrar_saida(
     return {"id": mid}
 
 
-@router.get("/saldo/{item_id}")
+@router.get("/saldo/{item_id}", dependencies=[Depends(ESTOQUE_READ)])
 def saldo_item(item_id: int, db: DBDependency):
     service = EstoqueService(db)
     saldo = service.calcular_saldo_item(item_id)
     return {"item_id": item_id, "saldo": saldo}
 
 
-@router.get("/movimentos/{item_id}")
+@router.get("/movimentos/{item_id}", dependencies=[Depends(ESTOQUE_READ)])
 def movimentos_item(item_id: int, db: DBDependency):
     service = EstoqueService(db)
     movimentos = service.buscar_movimentos_por_item(item_id)

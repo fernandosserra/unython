@@ -6,6 +6,7 @@ export interface Usuario {
   role: 'Administrador' | 'Operador' | 'Recepcionista' | 'Vendedor';
   status: 'Ativo' | 'Inativo';
   require_password_change?: boolean;
+  permissoes: string[] | null;
 }
 
 export interface Categoria {
@@ -100,12 +101,23 @@ export interface Agendamento {
 export interface OrganizacaoConfig {
   nome_organizacao: string;
   tipo_organizacao: string;
+  subtitulo?: string;
+  registro?: string;
+  cidade_uf?: string;
+  telefone_contato?: string;
   termo_assistido: string;
   termo_assistido_plural: string;
   termo_atendente: string;
+  termo_atendente_plural: string;
   termo_servico: string;
   termo_atividade: string;
+  termo_atividade_plural: string;
   alias_evento: string;
+  alias_evento_plural: string;
+  habilitar_pdv: boolean;
+  habilitar_atendimentos: boolean;
+  habilitar_doacoes: boolean;
+  exigir_documento_atendimento: boolean;
 }
 
 export interface CartItem {

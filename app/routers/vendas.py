@@ -3,7 +3,7 @@ from typing import List, Optional
 from decimal import Decimal
 
 from src.utils.audit import record_audit
-from src.utils.dependencies import DBDependency, get_current_user
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.utils.schemas import VendaCreate, VendaRecenteResponse, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
@@ -14,7 +14,7 @@ from src.utils.models import Venda, ItemVenda, Caixa, Usuario
 router = APIRouter(
     prefix="/vendas",
     tags=["Vendas"],
-    dependencies=[Depends(get_current_user)],
+    dependencies=[Depends(get_current_user), Depends(require_module("pdv"))],
 )
 
 

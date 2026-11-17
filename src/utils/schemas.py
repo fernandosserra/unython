@@ -91,6 +91,17 @@ class OrganizacaoConfigSchema(BaseModel):
     termo_servico: str = Field(..., min_length=2, max_length=50)
     termo_atividade: str = Field(default="Entidade / Serviço", min_length=2, max_length=50)
     alias_evento: str = Field(default="Evento", min_length=2, max_length=50)
+    subtitulo: Optional[str] = None
+    registro: Optional[str] = None
+    cidade_uf: Optional[str] = None
+    telefone_contato: Optional[str] = None
+    termo_atendente_plural: str = Field(default="Médiuns / Cambones", min_length=2, max_length=50)
+    termo_atividade_plural: str = Field(default="Entidades / Serviços", min_length=2, max_length=50)
+    alias_evento_plural: str = Field(default="Eventos", min_length=2, max_length=50)
+    habilitar_pdv: bool = True
+    habilitar_atendimentos: bool = True
+    habilitar_doacoes: bool = True
+    exigir_documento_atendimento: bool = False
 
 
 class PessoaCreate(BaseModel):
@@ -165,12 +176,29 @@ class UsuarioCreate(BaseModel):
     status: str = "Ativo"
     senha: str = Field(..., min_length=4)
     require_password_change: bool = False
+    permissoes: Optional[List[Literal['pdv', 'caixa', 'atendimentos', 'doacoes', 'estoque', 'relatorios', 'eventos']]] = None
+
+    @validator('permissoes')
+    def permissoes_unicas(cls, value):
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError('Permissões duplicadas não são permitidas.')
+        return value
 
 
 class RoleUpdate(BaseModel):
     role: str
     status: str = "Ativo"
     funcao: Optional[str] = None
+
+
+class PermissoesUpdate(BaseModel):
+    permissoes: Optional[List[Literal['pdv', 'caixa', 'atendimentos', 'doacoes', 'estoque', 'relatorios', 'eventos']]]
+
+    @validator('permissoes')
+    def permissoes_unicas(cls, value):
+        if value is not None and len(value) != len(set(value)):
+            raise ValueError('Permissões duplicadas não são permitidas.')
+        return value
 
 
 # --- 2. MODELOS DE SAIDA (Para GET) ---
@@ -233,6 +261,7 @@ class UsuarioResponse(BaseModel):
     role: str
     status: str
     require_password_change: bool = False
+    permissoes: Optional[List[str]] = None
 
     class Config:
         from_attributes = True
@@ -254,6 +283,7 @@ class Token(BaseModel):
     user_id: int
     require_password_change: bool
     role: str
+    permissoes: Optional[List[str]] = None
 
 
 class ChangePasswordRequest(BaseModel):

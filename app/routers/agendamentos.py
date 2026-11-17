@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from typing import List, Optional
 from datetime import datetime
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_module
 from src.modules.agendamento import AgendamentoService
 from src.modules.pessoa import PessoaService
 from src.modules.relatorio import RelatorioService
@@ -19,7 +19,8 @@ from src.utils.schemas import (
 
 router = APIRouter(
     prefix="/agendamentos",
-    tags=["Logística, Acolhimento e Atendimentos"]
+    tags=["Logística, Acolhimento e Atendimentos"],
+    dependencies=[Depends(require_module("atendimentos"))],
 )
 
 
@@ -43,6 +44,24 @@ def validar_atividade(db: DBDependency, atividade_id: Optional[int]):
             raise HTTPException(status_code=400, detail="Cadastro não encontrado ou inativo.")
         return row[0]
     return None
+
+
+def validar_documento(documento: Optional[str]):
+    if not documento or not documento.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Documento é obrigatório para atendimento.",
+        )
+
+
+def validar_documento_pessoa(db: DBDependency, id_pessoa: int):
+    _, row = db.execute_query(
+        "SELECT documento FROM pessoas WHERE id = %s",
+        (id_pessoa,), fetch_one=True,
+    )
+    if not row:
+        raise HTTPException(status_code=400, detail="Pessoa não encontrada.")
+    validar_documento(row[0])
 
 
 @router.get("/fila/{id_evento}", response_model=List[AgendamentoFilaItem])
@@ -75,11 +94,17 @@ def agendar_com_antecedencia(payload: AcolhimentoCreateRequest, db: DBDependency
     """
     validar_facilitador(db, payload.id_facilitador)
     atividade = validar_atividade(db, payload.id_atividade)
-    tipo_servico = payload.tipo_servico or atividade or OrganizacaoService(db).obter_configuracoes().termo_servico
+    config = OrganizacaoService(db).obter_configuracoes()
+    tipo_servico = payload.tipo_servico or atividade or config.termo_servico
     pessoa_service = PessoaService(db)
     agendamento_service = AgendamentoService(db)
 
     id_pessoa = payload.id_pessoa
+    if config.exigir_documento_atendimento:
+        if id_pessoa:
+            validar_documento_pessoa(db, id_pessoa)
+        else:
+            validar_documento(payload.documento)
     if not id_pessoa:
         if not payload.nome:
             raise HTTPException(
@@ -132,6 +157,13 @@ def realizar_checkin(id_agendamento: int, db: DBDependency):
     Gera a senha sequencial da noite e insere na fila ativa de chamada.
     """
     service = AgendamentoService(db)
+    if OrganizacaoService(db).obter_configuracoes().exigir_documento_atendimento:
+        _, row = db.execute_query(
+            "SELECT id_pessoa FROM agendamentos WHERE id = %s",
+            (id_agendamento,), fetch_one=True,
+        )
+        if row:
+            validar_documento_pessoa(db, row[0])
     resultado = service.fazer_checkin(id_agendamento)
     if not resultado:
         raise HTTPException(
@@ -154,11 +186,17 @@ def acolher_pessoa_no_evento(payload: AcolhimentoCreateRequest, db: DBDependency
     """
     validar_facilitador(db, payload.id_facilitador)
     atividade = validar_atividade(db, payload.id_atividade)
-    tipo_servico = payload.tipo_servico or atividade or OrganizacaoService(db).obter_configuracoes().termo_servico
+    config = OrganizacaoService(db).obter_configuracoes()
+    tipo_servico = payload.tipo_servico or atividade or config.termo_servico
     pessoa_service = PessoaService(db)
     agendamento_service = AgendamentoService(db)
 
     id_pessoa = payload.id_pessoa
+    if config.exigir_documento_atendimento:
+        if id_pessoa:
+            validar_documento_pessoa(db, id_pessoa)
+        else:
+            validar_documento(payload.documento)
 
     # Se não passou id_pessoa mas passou nome, cria a pessoa primeiro
     if not id_pessoa:

@@ -1,5 +1,11 @@
 # React + TypeScript + Vite
 
+## Permissões
+
+Em Administração → Usuários & Permissões, administradores podem salvar uma lista explícita de módulos ou restaurar o acesso legado. A lista vazia bloqueia todos os módulos; o acesso legado permite PDV, caixa, atendimentos e doações. Administradores mantêm acesso à configuração, mesmo com módulos desabilitados pela organização. A sessão é verificada no login, na restauração, periodicamente, ao recuperar o foco e após respostas 403.
+
+Os testes de navegação por permissão podem ser executados com `node --test tests/permissions.test.ts` (Node.js com suporte a TypeScript).
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

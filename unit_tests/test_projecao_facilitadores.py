@@ -8,7 +8,10 @@ from fastapi.testclient import TestClient
 
 from app.api_main import app
 from app.routers import atividades, catalogo, doacoes, facilitadores, organizacao, relatorios
-from app.routers.agendamentos import agendar_com_antecedencia, validar_atividade, validar_facilitador
+from app.routers.agendamentos import (
+    acolher_pessoa_no_evento, agendar_com_antecedencia, realizar_checkin,
+    validar_atividade, validar_facilitador,
+)
 from src.modules.agendamento import AgendamentoService
 from src.modules.evento import EventoService
 from src.modules.item import ItemService
@@ -28,7 +31,8 @@ class MemoryDB:
             CREATE TABLE facilitadores (id INTEGER PRIMARY KEY, nome TEXT, especialidade TEXT,
                 observacoes TEXT, status TEXT);
             CREATE TABLE atividades_atendimento (id INTEGER PRIMARY KEY, nome TEXT, descricao TEXT, status TEXT);
-            CREATE TABLE pessoas (id INTEGER PRIMARY KEY, nome TEXT, telefone TEXT, documento TEXT);
+            CREATE TABLE pessoas (id INTEGER PRIMARY KEY, nome TEXT, telefone TEXT, documento TEXT,
+                preferencial BOOLEAN, observacoes TEXT, data_cadastro TEXT);
             CREATE TABLE agendamentos (id INTEGER PRIMARY KEY, id_pessoa INTEGER, id_facilitador INTEGER,
                 data_hora TEXT, tipo_servico TEXT, status TEXT, id_evento INTEGER, compareceu TEXT,
                 numero_senha TEXT, preferencial BOOLEAN, ordem_chegada INTEGER, observacoes TEXT, id_atividade INTEGER);
@@ -38,7 +42,10 @@ class MemoryDB:
                 nome_doador TEXT, forma_pagamento TEXT, status TEXT DEFAULT 'Ativo');
             CREATE TABLE organizacao_config (id INTEGER PRIMARY KEY, nome_organizacao TEXT, tipo_organizacao TEXT,
                 termo_assistido TEXT, termo_assistido_plural TEXT, termo_atendente TEXT, termo_servico TEXT,
-                termo_atividade TEXT, alias_evento TEXT);
+                termo_atividade TEXT, alias_evento TEXT, subtitulo TEXT, registro TEXT, cidade_uf TEXT,
+                telefone_contato TEXT, termo_atendente_plural TEXT, termo_atividade_plural TEXT,
+                alias_evento_plural TEXT, habilitar_pdv BOOLEAN, habilitar_atendimentos BOOLEAN,
+                habilitar_doacoes BOOLEAN, exigir_documento_atendimento BOOLEAN);
         """)
 
     def execute_query(self, query, params=None, fetch_one=False, fetch_all=False, commit=False, return_rowcount=False):
@@ -189,6 +196,77 @@ def test_config_legada_nao_apaga_termo_atividade(db):
     db.conn.execute("INSERT INTO pessoas (id, nome) VALUES (1, 'João')")
     agendar_com_antecedencia(AcolhimentoCreateRequest(id_evento=1, id_pessoa=1), db)
     assert AgendamentoService(db).listar_pre_agendados(1)[0]["tipo_servico"] == "Consulta"
+
+
+def test_config_novos_campos_e_put_legado(db):
+    payload = dict(nome_organizacao="Casa", tipo_organizacao="Igreja", termo_assistido="Fiel",
+                   termo_assistido_plural="Fiéis", termo_atendente="Padre", termo_servico="Consulta")
+    defaults = organizacao.get_config(db)
+    assert defaults.habilitar_pdv and defaults.habilitar_atendimentos and defaults.habilitar_doacoes
+    assert not defaults.exigir_documento_atendimento
+    novos = dict(subtitulo="Comunidade", registro="123", cidade_uf="Recife/PE",
+                 telefone_contato="123", termo_atendente_plural="Padres",
+                 termo_atividade_plural="Serviços", alias_evento_plural="Encontros",
+                 habilitar_pdv=False, habilitar_atendimentos=False, habilitar_doacoes=False,
+                 exigir_documento_atendimento=True)
+    organizacao.update_config(OrganizacaoConfigSchema(**payload, **novos), db)
+    organizacao.update_config(OrganizacaoConfigSchema(**payload), db)
+    assert organizacao.get_config(db).model_dump().items() >= novos.items()
+    organizacao.update_config(OrganizacaoConfigSchema(**payload, subtitulo=None, habilitar_pdv=True), db)
+    config = organizacao.get_config(db)
+    assert config.subtitulo is None and config.habilitar_pdv
+    assert config.exigir_documento_atendimento
+
+
+@pytest.mark.parametrize("endpoint", [agendar_com_antecedencia, acolher_pessoa_no_evento])
+def test_documento_obrigatorio_nova_e_existente(db, endpoint):
+    payload = dict(nome_organizacao="Casa", tipo_organizacao="Igreja", termo_assistido="Fiel",
+                   termo_assistido_plural="Fiéis", termo_atendente="Padre", termo_servico="Consulta")
+    organizacao.update_config(OrganizacaoConfigSchema(**payload, exigir_documento_atendimento=True), db)
+    db.conn.execute("INSERT INTO pessoas (id, nome, documento) VALUES (1, 'Ana', '   '), (2, 'João', '123')")
+    for request in (
+        AcolhimentoCreateRequest(id_evento=1, nome="Maria"),
+        AcolhimentoCreateRequest(id_evento=1, nome="Maria", documento="  "),
+        AcolhimentoCreateRequest(id_evento=1, id_pessoa=1, documento="123"),
+    ):
+        with pytest.raises(HTTPException, match="Documento"):
+            endpoint(request, db)
+    assert db.conn.execute("SELECT COUNT(*) FROM agendamentos").fetchone()[0] == 0
+    assert db.conn.execute("SELECT COUNT(*) FROM pessoas").fetchone()[0] == 2
+    assert endpoint(AcolhimentoCreateRequest(id_evento=1, id_pessoa=2), db)
+    assert endpoint(AcolhimentoCreateRequest(id_evento=1, nome="Maria", documento="456"), db)
+
+
+def test_checkin_valida_documento_atual_e_regra_opcional(db):
+    db.conn.create_function("NOW", 0, lambda: "2026-11-17")
+    db.conn.execute("INSERT INTO pessoas (id, nome, documento) VALUES (1, 'Ana', NULL)")
+    agendamento = agendar_com_antecedencia(AcolhimentoCreateRequest(id_evento=1, id_pessoa=1), db)["id"]
+    payload = dict(nome_organizacao="Casa", tipo_organizacao="Igreja", termo_assistido="Fiel",
+                   termo_assistido_plural="Fiéis", termo_atendente="Padre", termo_servico="Consulta")
+    organizacao.update_config(OrganizacaoConfigSchema(**payload, exigir_documento_atendimento=True), db)
+    with pytest.raises(HTTPException, match="Documento"):
+        realizar_checkin(agendamento, db)
+    assert db.conn.execute("SELECT status FROM agendamentos WHERE id = ?", (agendamento,)).fetchone()[0] == "PreAgendado"
+    db.conn.execute("UPDATE pessoas SET documento = '123' WHERE id = 1")
+    assert realizar_checkin(agendamento, db)["status"] == "Aguardando"
+
+
+def test_agendamentos_exige_modulo_e_respeita_desativacao(db):
+    usuario = Usuario(id=1, nome="Operador", email="op@example.test", funcao="Operador", permissoes=[])
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: usuario
+    client = TestClient(app)
+    try:
+        assert client.get("/api/agendamentos/pre-agendados/1").status_code == 403
+        usuario.permissoes = ["atendimentos"]
+        assert client.get("/api/agendamentos/pre-agendados/1").status_code == 200
+        payload = dict(nome_organizacao="Casa", tipo_organizacao="Igreja", termo_assistido="Fiel",
+                       termo_assistido_plural="Fiéis", termo_atendente="Padre", termo_servico="Consulta")
+        organizacao.update_config(OrganizacaoConfigSchema(**payload, habilitar_atendimentos=False), db)
+        assert client.get("/api/agendamentos/pre-agendados/1").status_code == 403
+    finally:
+        client.close()
+        app.dependency_overrides.clear()
 
 
 def test_config_alias_evento_e_autorizacao(db):

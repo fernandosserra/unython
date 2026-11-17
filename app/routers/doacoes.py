@@ -3,11 +3,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.utils.dependencies import DBDependency, get_current_user
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.utils.models import Usuario
 from src.utils.schemas import DoacaoCreate
 
-router = APIRouter(prefix="/doacoes", tags=["Doações financeiras"])
+router = APIRouter(prefix="/doacoes", tags=["Doações financeiras"], dependencies=[Depends(require_module("doacoes"))])
 CurrentUser = Annotated[Usuario, Depends(get_current_user)]
 
 

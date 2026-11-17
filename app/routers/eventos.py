@@ -1,15 +1,19 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from datetime import date
 from typing import List, Optional
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_module
 from src.modules.evento import EventoService
 from src.utils.models import Evento
 
 router = APIRouter(prefix="/eventos", tags=["Eventos"])
+EVENTOS_READ = require_module("eventos", "atendimentos", "caixa", "doacoes", "pdv", check_features=False)
+EVENTO_ABERTO_READ = require_module("eventos", "atendimentos", "caixa", "doacoes", "pdv", "estoque", check_features=False)
+EVENTOS_ATENDIMENTOS_WRITE = require_module("eventos", "atendimentos")
+EVENTOS_CAIXA_WRITE = require_module("eventos", "caixa")
 
 
-@router.get("/aberto")
+@router.get("/aberto", dependencies=[Depends(EVENTO_ABERTO_READ)])
 def evento_aberto(db: DBDependency):
     service = EventoService(db)
     ev = service.buscar_evento_aberto()
@@ -18,7 +22,7 @@ def evento_aberto(db: DBDependency):
     return ev.__dict__
 
 
-@router.get("/ativos-e-futuros")
+@router.get("/ativos-e-futuros", dependencies=[Depends(EVENTOS_READ)])
 def listar_eventos_ativos_e_futuros(db: DBDependency):
     """Retorna eventos abertos e agendados com antecedência."""
     service = EventoService(db)
@@ -26,14 +30,14 @@ def listar_eventos_ativos_e_futuros(db: DBDependency):
     return [e.__dict__ for e in evs]
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(EVENTOS_READ)])
 def listar_eventos(db: DBDependency, data_inicio: Optional[date] = None, data_fim: Optional[date] = None) -> List[dict]:
     service = EventoService(db)
     eventos = service.buscar_eventos(data_inicio, data_fim)
     return [e.__dict__ for e in eventos]
 
 
-@router.post("/novo", status_code=status.HTTP_201_CREATED)
+@router.post("/novo", status_code=status.HTTP_201_CREATED, dependencies=[Depends(EVENTOS_ATENDIMENTOS_WRITE)])
 def criar_evento_agendado(
     nome: str,
     data_evento: date,
@@ -50,7 +54,7 @@ def criar_evento_agendado(
     return {"id": ev_id, "nome": nome, "data_evento": str(data_evento), "tipo": tipo, "status": status}
 
 
-@router.post("/{evento_id}/iniciar")
+@router.post("/{evento_id}/iniciar", dependencies=[Depends(EVENTOS_ATENDIMENTOS_WRITE)])
 def iniciar_evento_agendado(evento_id: int, db: DBDependency):
     """Inicia / abre um evento que havia sido agendado previamente."""
     service = EventoService(db)
@@ -60,7 +64,7 @@ def iniciar_evento_agendado(evento_id: int, db: DBDependency):
     return {"status": "Aberto", "id": evento_id}
 
 
-@router.post("/abrir", status_code=status.HTTP_201_CREATED)
+@router.post("/abrir", status_code=status.HTTP_201_CREATED, dependencies=[Depends(EVENTOS_CAIXA_WRITE)])
 def abrir_evento(nome: str = None, tipo: str = "Operacao", db: DBDependency = None):
     """Abre um evento/dia de trabalho; se já houver aberto, retorna-o."""
     service = EventoService(db)
@@ -74,7 +78,7 @@ def abrir_evento(nome: str = None, tipo: str = "Operacao", db: DBDependency = No
     return {"id": ev_id, "nome": nome_final, "data_evento": str(hoje), "tipo": tipo}
 
 
-@router.post("/{evento_id}/fechar")
+@router.post("/{evento_id}/fechar", dependencies=[Depends(EVENTOS_CAIXA_WRITE)])
 def fechar_evento(evento_id: int, db: DBDependency):
     """Fecha um evento aberto."""
     service = EventoService(db)

@@ -27,7 +27,7 @@ import type { Evento, MovimentoCaixa, Item } from '../types';
 interface PDVViewProps {
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
-  onNavigateToCaixa: () => void;
+  onNavigateToCaixa?: () => void;
 }
 
 interface VendaRecente {
@@ -225,12 +225,12 @@ export const PDVView: React.FC<PDVViewProps> = ({
                 {!activeMovimento && 'Abra um Caixa.'}
               </div>
             </div>
-            <button
+            {onNavigateToCaixa && <button
               onClick={onNavigateToCaixa}
               className="min-h-11 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
             >
               Abrir
-            </button>
+            </button>}
           </div>
         )}
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { useAuthStore } from './store/useAuthStore';
 import { useOrgStore } from './store/useOrgStore';
@@ -14,35 +14,48 @@ import { ConnectMobileModal } from './components/ConnectMobileModal';
 import { ConnectivityBanner } from './components/ConnectivityBanner';
 import { apiClient } from './api/client';
 import type { Evento, MovimentoCaixa } from './types';
+import { availableTabs, hasPermission, type AppTab } from './permissions';
 
 export function App() {
-  const { isAuthenticated, logout, user } = useAuthStore();
-  const [currentTab, setCurrentTab] = useState<'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes'>('pdv');
+  const { isAuthenticated, authReady, refreshUser, logout, user } = useAuthStore();
+  const [currentTab, setCurrentTab] = useState<AppTab>('pdv');
   const [activeEvento, setActiveEvento] = useState<Evento | null>(null);
   const [activeMovimento, setActiveMovimento] = useState<MovimentoCaixa | null>(null);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
   const loadConfig = useOrgStore((state) => state.loadConfig);
+  const config = useOrgStore((state) => state.config);
   const [configStatus, setConfigStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [configRetry, setConfigRetry] = useState(0);
+  const [authError, setAuthError] = useState(false);
+  const sessionVersion = useRef(0);
+  const allowedTabs = availableTabs(user, config);
+  const effectiveTab = allowedTabs.includes(currentTab) ? currentTab : allowedTabs[0] ?? null;
+  const canReadEvento = allowedTabs.some((tab) => tab !== 'admin') || hasPermission(user, 'eventos') || hasPermission(user, 'estoque');
+  const canReadCaixa = allowedTabs.includes('caixa') || allowedTabs.includes('pdv');
 
   // Carrega status da sessão ativa (Evento aberto + Caixa ativo)
   const refreshActiveSession = useCallback(async () => {
-    if (!isAuthenticated) return;
+    const version = ++sessionVersion.current;
+    if (!isAuthenticated || !authReady || user?.require_password_change || configStatus !== 'ready') return;
 
     try {
       // 1. Busca evento aberto
       try {
-        const evResp = await apiClient.get('/eventos/aberto');
-        setActiveEvento(evResp.data || null);
+        const evResp = canReadEvento ? await apiClient.get('/eventos/aberto') : null;
+        if (version === sessionVersion.current) setActiveEvento(evResp?.data || null);
       } catch (err) {
         if (axios.isAxiosError(err) && err.response?.status === 404) {
-          setActiveEvento(null);
+          if (version === sessionVersion.current) setActiveEvento(null);
         } else {
           throw err;
         }
       }
 
       // 2. Busca caixas e vê se algum está com movimento ativo
+      if (!canReadCaixa) {
+        if (version === sessionVersion.current) setActiveMovimento(null);
+        return;
+      }
       const caixasResp = await apiClient.get('/caixas/');
       const caixasList = caixasResp.data || [];
       let foundMov: MovimentoCaixa | null = null;
@@ -60,20 +73,21 @@ export function App() {
           }
         }
       }
-      setActiveMovimento(foundMov);
+      if (version === sessionVersion.current) setActiveMovimento(foundMov);
     } catch (err) {
       console.error('Erro ao sincronizar sessão:', err);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, authReady, user?.require_password_change, configStatus, canReadEvento, canReadCaixa]);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      refreshActiveSession();
-    }
-  }, [isAuthenticated, refreshActiveSession]);
+    setActiveEvento(null);
+    setActiveMovimento(null);
+    void refreshActiveSession();
+    return () => { sessionVersion.current++; };
+  }, [refreshActiveSession]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !authReady || user?.require_password_change) {
       setConfigStatus('loading');
       return;
     }
@@ -84,13 +98,43 @@ export function App() {
       () => { if (active) setConfigStatus('error'); },
     );
     return () => { active = false; };
-  }, [isAuthenticated, loadConfig, configRetry]);
+  }, [isAuthenticated, authReady, user?.require_password_change, loadConfig, configRetry]);
 
   useEffect(() => {
-    if (currentTab === 'admin' && user?.role !== 'Administrador') {
-      setCurrentTab('pdv');
-    }
-  }, [currentTab, user?.role]);
+    if (!isAuthenticated) return;
+    let active = true;
+    const verify = async (block = false) => {
+      const ok = await refreshUser(block);
+      if (active) setAuthError(!ok);
+    };
+    void verify();
+    const onFocus = () => {
+      void verify().then(() => {
+        const state = useAuthStore.getState();
+        if (state.authReady && !state.user?.require_password_change) {
+          void loadConfig().catch(() => { if (active) setConfigStatus('error'); });
+        }
+      });
+    };
+    const timer = window.setInterval(onFocus, 60_000);
+    let lastForbidden = 0;
+    const interceptor = apiClient.interceptors.response.use(undefined, (error: unknown) => {
+      if (axios.isAxiosError(error) && error.response?.status === 403 &&
+          !error.config?.url?.includes('/auth/me') && !error.config?.url?.includes('/token') &&
+          Date.now() - lastForbidden > 5000) {
+        lastForbidden = Date.now();
+        void verify(true);
+      }
+      return Promise.reject(error);
+    });
+    window.addEventListener('focus', onFocus);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+      apiClient.interceptors.response.eject(interceptor);
+    };
+  }, [isAuthenticated, refreshUser, loadConfig]);
 
   // Listener para token expirado
   useEffect(() => {
@@ -108,6 +152,14 @@ export function App() {
         <LoginView />
       </>
     );
+  }
+
+  if (!authReady) {
+    return <><ConnectivityBanner /><div className="p-6" role={authError ? 'alert' : 'status'}>
+      {authError ? <><p>Não foi possível verificar sua sessão.</p>
+        <button type="button" className="mt-3 rounded-lg bg-slate-900 px-4 py-2 text-white" onClick={() => { setAuthError(false); void refreshUser(true).then((ok) => setAuthError(!ok)); }}>Tentar novamente</button>
+        <button type="button" className="ml-3 text-slate-700" onClick={logout}>Sair</button></> : 'Verificando sessão...'}
+    </div></>;
   }
 
   if (user?.require_password_change) {
@@ -138,7 +190,7 @@ export function App() {
   return (
     <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-900 pb-[calc(4.25rem_+_env(safe-area-inset-bottom))] lg:pb-0">
       <Navbar
-        currentTab={currentTab}
+        currentTab={effectiveTab}
         setCurrentTab={setCurrentTab}
         activeEvento={activeEvento}
         activeMovimento={activeMovimento}
@@ -147,23 +199,24 @@ export function App() {
       <ConnectivityBanner />
 
       <main className="min-h-0 min-w-0 flex-1 flex flex-col overflow-x-hidden">
-        {currentTab === 'pdv' && (
+        {!effectiveTab && <div role="status" className="p-6">Você não possui acesso a nenhum módulo. Entre em contato com um administrador.</div>}
+        {effectiveTab === 'pdv' && (
           <PDVView
             activeEvento={activeEvento}
             activeMovimento={activeMovimento}
-            onNavigateToCaixa={() => setCurrentTab('caixa')}
+            onNavigateToCaixa={allowedTabs.includes('caixa') ? () => setCurrentTab('caixa') : undefined}
           />
         )}
 
-        {currentTab === 'agendamentos' && (
+        {effectiveTab === 'agendamentos' && (
           <AgendamentosView
             activeEvento={activeEvento}
-            onNavigateToCaixa={() => setCurrentTab('caixa')}
+            onNavigateToCaixa={allowedTabs.includes('caixa') ? () => setCurrentTab('caixa') : undefined}
             onRefreshState={refreshActiveSession}
           />
         )}
 
-        {currentTab === 'caixa' && (
+        {effectiveTab === 'caixa' && (
           <CaixaView
             activeEvento={activeEvento}
             activeMovimento={activeMovimento}
@@ -171,10 +224,10 @@ export function App() {
           />
         )}
 
-        {currentTab === 'admin' && (
+        {effectiveTab === 'admin' && (
           <AdminView activeEvento={activeEvento} onRefreshState={refreshActiveSession} />
         )}
-        {currentTab === 'doacoes' && <DoacoesView />}
+        {effectiveTab === 'doacoes' && <DoacoesView />}
       </main>
 
       {/* Rodapé – Branding & Licença */}

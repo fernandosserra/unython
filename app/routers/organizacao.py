@@ -15,16 +15,7 @@ def get_config(db: DBDependency):
     """Retorna os parâmetros de vocabulário e tipo da organização ativa."""
     service = OrganizacaoService(db)
     config = service.obter_configuracoes()
-    return OrganizacaoConfigSchema(
-        nome_organizacao=config.nome_organizacao,
-        tipo_organizacao=config.tipo_organizacao,
-        termo_assistido=config.termo_assistido,
-        termo_assistido_plural=config.termo_assistido_plural,
-        termo_atendente=config.termo_atendente,
-        termo_servico=config.termo_servico,
-        termo_atividade=config.termo_atividade,
-        alias_evento=config.alias_evento,
-    )
+    return OrganizacaoConfigSchema.model_validate(config, from_attributes=True)
 
 
 @router.put("/config", status_code=status.HTTP_200_OK)
@@ -35,20 +26,16 @@ def update_config(
 ):
     """Atualiza o vocabulário e tipo da organização (ex: Terreiro, Igreja, Albergue, Clínica)."""
     service = OrganizacaoService(db)
-    campos_omitidos = {"termo_atividade", "alias_evento"} - payload.model_fields_set
+    campos_omitidos = {
+        "termo_atividade", "alias_evento", "subtitulo", "registro", "cidade_uf",
+        "telefone_contato", "termo_atendente_plural", "termo_atividade_plural",
+        "alias_evento_plural", "habilitar_pdv", "habilitar_atendimentos",
+        "habilitar_doacoes", "exigir_documento_atendimento",
+    } - payload.model_fields_set
     if campos_omitidos:
         atual = service.obter_configuracoes()
         payload = payload.model_copy(update={campo: getattr(atual, campo) for campo in campos_omitidos})
-    ok = service.salvar_configuracoes(
-        nome_organizacao=payload.nome_organizacao,
-        tipo_organizacao=payload.tipo_organizacao,
-        termo_assistido=payload.termo_assistido,
-        termo_assistido_plural=payload.termo_assistido_plural,
-        termo_atendente=payload.termo_atendente,
-        termo_servico=payload.termo_servico,
-        termo_atividade=payload.termo_atividade,
-        alias_evento=payload.alias_evento,
-    )
+    ok = service.salvar_configuracoes(**payload.model_dump())
     if not ok:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

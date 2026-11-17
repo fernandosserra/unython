@@ -10,25 +10,25 @@ from decimal import Decimal # Necessário para o cálculo de soma do Inventário
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 # Importa Services e Infraestrutura
-from src.utils.dependencies import DBDependency, require_role
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.modules.relatorio import RelatorioService
 from src.modules.estoque import EstoqueService
 from src.utils.models import Usuario
 from src.utils.schemas import InventarioResponse # Reutilizaremos este Schema para o Inventário
-
-ADMIN_ONLY = require_role({'Administrador'})
 
 # Cria o Router para as rotas de relatórios
 router = APIRouter(
     prefix="/relatorios",
     tags=["Análise e Fluxo de Caixa (Relatórios)"]
 )
+RELATORIOS_READ = require_module("relatorios", legacy_allow=True)
+RELATORIOS_GERENCIAL = require_module("relatorios", legacy_admin_only=True)
 
 # ------------------------------------------------------------------
 # 1. ENDPOINT: SALDO TOTAL DO FLUXO DE CAIXA
 # ------------------------------------------------------------------
 
-@router.get("/caixa/saldo", status_code=status.HTTP_200_OK)
+@router.get("/caixa/saldo", status_code=status.HTTP_200_OK, dependencies=[Depends(RELATORIOS_READ)])
 def get_saldo_caixa(db: DBDependency):
     """Calcula e retorna o saldo total do caixa (Receitas - Despesas)."""
     relatorio_service = RelatorioService(db)
@@ -44,7 +44,7 @@ def get_saldo_caixa(db: DBDependency):
 # 2. ENDPOINT: DESPESAS POR CATEGORIA
 # ------------------------------------------------------------------
 
-@router.get("/despesas/categoria", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK)
+@router.get("/despesas/categoria", response_model=List[Dict[str, Any]], status_code=status.HTTP_200_OK, dependencies=[Depends(RELATORIOS_READ)])
 def get_despesas_por_categoria(db: DBDependency):
     """Gera um relatório de soma total gasta por cada categoria (Ex: Material, Aluguel)."""
     relatorio_service = RelatorioService(db)
@@ -61,16 +61,13 @@ def get_despesas_por_categoria(db: DBDependency):
 # 3. ENDPOINT: RELATÓRIO GERENCIAL
 # ------------------------------------------------------------------
 
-@router.get("/relatorio-gerencial")
+@router.get("/relatorio-gerencial", dependencies=[Depends(RELATORIOS_GERENCIAL)])
 def get_relatorio_gerencial(
     db: DBDependency,
-    # A MÁGICA DO RBAC: Adicionamos a dependência aqui!
-    # O FastAPI executa esta função ANTES de entrar na rota.
-    # Se o current_user.role não for 'Administrador', ele lança HTTPException 403.
-    current_user: Annotated[Usuario, Depends(ADMIN_ONLY)] 
+    current_user: Annotated[Usuario, Depends(get_current_user)]
 ):
     """
-    Gera um relatório gerencial. Apenas usuários com a role 'Administrador' têm acesso.
+    Gera um relatório gerencial para usuários autorizados ao módulo de relatórios.
     """
     # Se o código chegou aqui, o usuário está autenticado E autorizado.
     
@@ -86,7 +83,7 @@ def get_relatorio_gerencial(
 # 4. ENDPOINT: INVENTÁRIO / RELATÓRIO DE ESTOQUE
 # ------------------------------------------------------------------
 
-@router.get("/projecao-estoque")
+@router.get("/projecao-estoque", dependencies=[Depends(RELATORIOS_READ)])
 def get_projecao_estoque(db: DBDependency):
     query = """
     SELECT id, nome, saldo_atual, estoque_minimo, valor_compra,
@@ -113,7 +110,7 @@ def get_projecao_estoque(db: DBDependency):
             "sem_preco": [dict(zip(columns, row)) for row in rows]}
 
 
-@router.get("/inventario", response_model=List[InventarioResponse], status_code=status.HTTP_200_OK)
+@router.get("/inventario", response_model=List[InventarioResponse], status_code=status.HTTP_200_OK, dependencies=[Depends(RELATORIOS_READ)])
 def get_inventario(db: DBDependency):
     """
     Retorna o inventário consolidado: cada item do catálogo com seu saldo atual,

@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.utils.dependencies import DBDependency, require_role
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.utils.models import Usuario
 from src.utils.schemas import AtividadeCreate
 
 router = APIRouter(prefix="/atividades", tags=["Entidades e serviços"])
-ADMIN_ONLY = require_role({"Administrador"})
+ATIVIDADES_WRITE = require_module("atendimentos", legacy_admin_only=True)
 
 
-@router.get("/")
+@router.get("/", dependencies=[Depends(require_module("atendimentos"))])
 def listar_atividades(db: DBDependency, apenas_ativos: bool = False):
     query = "SELECT id, nome, descricao, status FROM atividades_atendimento"
     if apenas_ativos:
@@ -17,11 +17,11 @@ def listar_atividades(db: DBDependency, apenas_ativos: bool = False):
     return [dict(zip(columns, row)) for row in rows]
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(ATIVIDADES_WRITE)])
 def criar_atividade(
     payload: AtividadeCreate,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     aid = db.execute_query(
         "INSERT INTO atividades_atendimento (nome, descricao, status) VALUES (%s, %s, %s) RETURNING id",
@@ -30,12 +30,12 @@ def criar_atividade(
     return {"id": aid}
 
 
-@router.put("/{atividade_id}")
+@router.put("/{atividade_id}", dependencies=[Depends(ATIVIDADES_WRITE)])
 def atualizar_atividade(
     atividade_id: int,
     payload: AtividadeCreate,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     count = db.execute_query(
         "UPDATE atividades_atendimento SET nome = %s, descricao = %s, status = %s WHERE id = %s",
@@ -46,11 +46,11 @@ def atualizar_atividade(
     return {"id": atividade_id}
 
 
-@router.delete("/{atividade_id}")
+@router.delete("/{atividade_id}", dependencies=[Depends(ATIVIDADES_WRITE)])
 def inativar_atividade(
     atividade_id: int,
     db: DBDependency,
-    current_user: Usuario = Depends(ADMIN_ONLY),
+    current_user: Usuario = Depends(get_current_user),
 ):
     count = db.execute_query(
         "UPDATE atividades_atendimento SET status = 'Inativo' WHERE id = %s",

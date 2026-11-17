@@ -8,15 +8,17 @@ from fastapi.testclient import TestClient
 from app.api_main import app
 from app.routers import caixas, estoque, usuarios, vendas
 from src.modules.estoque import EstoqueService
+from src.modules.organizacao import OrganizacaoService
 from src.modules.venda import VendaService
 from src.utils.audit import record_audit
 from src.utils.dependencies import get_current_user, get_db
-from src.utils.models import ItemVenda, Usuario, Venda
+from src.utils.models import ItemVenda, OrganizacaoConfig, Usuario, Venda
 
 
 @pytest.fixture
-def api():
+def api(monkeypatch):
     db = MagicMock()
+    monkeypatch.setattr(OrganizacaoService, "obter_configuracoes", lambda self: OrganizacaoConfig())
     actor = Usuario(id=7, nome="Operador", email="op@example.test", funcao="Admin", role="Administrador")
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: actor

@@ -3,6 +3,7 @@ from typing import Optional, List
 from src.utils.database_manager import DatabaseManager
 from src.utils.models import Usuario
 from src.utils.security import hash_password, verify_password
+from psycopg2.extras import Json
 
 
 class UsuarioService:
@@ -30,17 +31,18 @@ class UsuarioService:
             return usuario_existente.id
 
         query = """
-        INSERT INTO usuarios (nome, email, funcao, status, role, hashed_password, require_password_change)
-        VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
+        INSERT INTO usuarios (nome, email, funcao, status, role, hashed_password, require_password_change, permissoes)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
-        params = (usuario.nome, usuario.email, usuario.funcao, usuario.status, usuario.role, hashed_pwd, require_password_change)
+        params = (usuario.nome, usuario.email, usuario.funcao, usuario.status, usuario.role, hashed_pwd, require_password_change,
+                  Json(usuario.permissoes) if usuario.permissoes is not None else None)
         return self.db.execute_query(query, params, commit=commit)
 
     # --- METODOS DE BUSCA ---
 
     def buscar_usuarios(self) -> List[Usuario]:
         """Busca todos os usuarios e os retorna como objetos Usuario."""
-        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change FROM usuarios"
+        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change, permissoes FROM usuarios"
         columns, results = self.db.execute_query(query, fetch_all=True)
         if results:
             return [Usuario(**dict(zip(columns, row))) for row in results]
@@ -48,7 +50,7 @@ class UsuarioService:
 
     def buscar_usuario_por_email(self, email: str) -> Optional[Usuario]:
         """Busca um usuario pelo email."""
-        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change FROM usuarios WHERE email = %s"
+        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change, permissoes FROM usuarios WHERE email = %s"
         columns, result = self.db.execute_query(query, (email,), fetch_one=True)
         if result:
             return Usuario(**dict(zip(columns, result)))
@@ -56,7 +58,7 @@ class UsuarioService:
 
     def buscar_usuario_por_id(self, user_id: int) -> Optional[Usuario]:
         """Busca um usuario pelo ID e retorna o objeto Usuario completo."""
-        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change FROM usuarios WHERE id = %s"
+        query = "SELECT id, nome, email, funcao, status, role, hashed_password, require_password_change, permissoes FROM usuarios WHERE id = %s"
         columns, result = self.db.execute_query(query, (user_id,), fetch_one=True)
         if result:
             return Usuario(**dict(zip(columns, result)))
@@ -81,6 +83,14 @@ class UsuarioService:
         query = "UPDATE usuarios SET role = %s, status = %s, funcao = %s WHERE id = %s"
         params = (role, status, funcao, usuario_id)
         return self.db.execute_query(query, params, commit=commit, return_rowcount=True) == 1
+
+    def atualizar_permissoes(self, usuario_id: int, permissoes: Optional[List[str]], *, commit: bool = True) -> bool:
+        valor = Json(permissoes) if permissoes is not None else None
+        return self.db.execute_query(
+            "UPDATE usuarios SET permissoes = %s WHERE id = %s",
+            (valor, usuario_id), commit=commit, return_rowcount=True,
+        ) == 1
+
     def alterar_senha(self, email: str, old_password: str, new_password: str) -> bool:
         """Altera a senha se a senha atual confere e limpa o flag de troca obrigatoria."""
         usuario = self.buscar_usuario_por_email(email)

@@ -7,9 +7,11 @@ interface AuthState {
   user: Usuario | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  authReady: boolean;
   error: string | null;
   notice: string | null;
   login: (email: string, password: string) => Promise<boolean>;
+  refreshUser: (blockUntilVerified?: boolean) => Promise<boolean>;
   logout: () => void;
   setUser: (user: Usuario) => void;
   setNotice: (notice: string) => void;
@@ -17,7 +19,9 @@ interface AuthState {
   clearError: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => {
+let refreshInFlight: Promise<boolean> | null = null;
+
+export const useAuthStore = create<AuthState>((set, get) => {
   const savedToken = localStorage.getItem('unython_auth_token');
   const savedUser = localStorage.getItem('unython_user_data');
 
@@ -35,6 +39,7 @@ export const useAuthStore = create<AuthState>((set) => {
     user: initialUser,
     isAuthenticated: !!savedToken,
     isLoading: false,
+    authReady: false,
     error: null,
     notice: null,
 
@@ -49,25 +54,20 @@ export const useAuthStore = create<AuthState>((set) => {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         });
 
-        const { access_token, user_id, role, require_password_change } = response.data;
-        const loggedUser: Usuario = {
-          id: user_id,
-          email,
-          nome: email.split('@')[0],
-          role,
-          status: 'Ativo',
-          require_password_change,
-        };
-
+        const { access_token } = response.data;
         localStorage.setItem('unython_auth_token', access_token);
-        localStorage.setItem('unython_user_data', JSON.stringify(loggedUser));
-
         set({
           token: access_token,
-          user: loggedUser,
+          user: null,
           isAuthenticated: true,
-          isLoading: false,
+          authReady: false,
         });
+        if (!await get().refreshUser(true)) {
+          get().logout();
+          set({ error: 'Não foi possível verificar sua sessão. Tente novamente.', isLoading: false });
+          return false;
+        }
+        set({ isLoading: false });
         return true;
       } catch (err: any) {
         const message = err.response?.data?.detail || 'Erro ao realizar login. Verifique as credenciais.';
@@ -76,10 +76,48 @@ export const useAuthStore = create<AuthState>((set) => {
       }
     },
 
+    refreshUser: async (blockUntilVerified = false) => {
+      const token = get().token;
+      if (!token) return false;
+      if (blockUntilVerified) set({ authReady: false });
+      if (refreshInFlight) return refreshInFlight;
+      const request = (async () => {
+        try {
+          const { data } = await apiClient.get<Usuario>('/auth/me');
+          if (get().token !== token) return false;
+          if (!data || (data.permissoes !== null &&
+              (!Array.isArray(data.permissoes) || !data.permissoes.every((permission) => typeof permission === 'string'))) ||
+              typeof data.id !== 'number' || typeof data.email !== 'string' ||
+              typeof data.role !== 'string' || typeof data.status !== 'string') {
+            set({ authReady: false });
+            return false;
+          }
+          if (data.status !== 'Ativo') {
+            get().logout();
+            get().setNotice('Sua conta foi desativada. Entre em contato com um administrador.');
+            return false;
+          }
+          localStorage.setItem('unython_user_data', JSON.stringify(data));
+          set({ user: data, authReady: true });
+          return true;
+        } catch {
+          if (get().token === token) set({ authReady: false });
+          return false;
+        }
+      })();
+      refreshInFlight = request;
+      try {
+        return await request;
+      } finally {
+        if (refreshInFlight === request) refreshInFlight = null;
+      }
+    },
+
     logout: () => {
+      refreshInFlight = null;
       localStorage.removeItem('unython_auth_token');
       localStorage.removeItem('unython_user_data');
-      set({ token: null, user: null, isAuthenticated: false, error: null });
+      set({ token: null, user: null, isAuthenticated: false, authReady: false, error: null });
     },
 
     setUser: (user: Usuario) => {

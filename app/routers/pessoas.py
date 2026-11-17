@@ -1,13 +1,13 @@
 # app/routers/pessoas.py
 
-from fastapi import APIRouter, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from typing import List, Optional
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_module
 from src.modules.pessoa import PessoaService
 from src.utils.models import Pessoa
 from src.utils.schemas import PessoaCreate, PessoaResponse
 
-router = APIRouter(prefix="/pessoas", tags=["Pessoas e Assistidos"])
+router = APIRouter(prefix="/pessoas", tags=["Pessoas e Assistidos"], dependencies=[Depends(require_module("atendimentos"))])
 
 
 @router.get("/", response_model=List[PessoaResponse])

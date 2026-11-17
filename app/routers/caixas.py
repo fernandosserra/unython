@@ -3,7 +3,7 @@ from typing import List, Optional
 from decimal import Decimal
 
 from src.utils.audit import record_audit
-from src.utils.dependencies import DBDependency, get_current_user
+from src.utils.dependencies import DBDependency, get_current_user, require_module
 from src.modules.caixas import CaixaService
 from src.utils.models import Caixa, Usuario
 from src.utils.schemas import CaixaAbrirRequest
@@ -11,14 +11,14 @@ from src.utils.schemas import CaixaAbrirRequest
 router = APIRouter(prefix="/caixas", tags=["Caixas"], dependencies=[Depends(get_current_user)])
 
 
-@router.get("/", response_model=List[dict])
+@router.get("/", response_model=List[dict], dependencies=[Depends(require_module("caixa", "pdv", check_features=False))])
 def listar_caixas(db: DBDependency):
     service = CaixaService(db)
     caixas = service.buscar_todos_caixas()
     return [c.__dict__ for c in caixas]
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_module("caixa"))])
 def criar_caixa(caixa: Caixa, db: DBDependency):
     service = CaixaService(db)
     cid = service.registrar_caixa(caixa)
@@ -27,7 +27,7 @@ def criar_caixa(caixa: Caixa, db: DBDependency):
     return {"id": cid}
 
 
-@router.get("/{caixa_id}/movimento-ativo")
+@router.get("/{caixa_id}/movimento-ativo", dependencies=[Depends(require_module("caixa", "pdv", check_features=False))])
 def movimento_ativo(caixa_id: int, db: DBDependency):
     service = CaixaService(db)
     mov = service.buscar_movimento_ativo(caixa_id)
@@ -36,7 +36,7 @@ def movimento_ativo(caixa_id: int, db: DBDependency):
     return mov.__dict__
 
 
-@router.post("/{caixa_id}/abrir", status_code=status.HTTP_201_CREATED)
+@router.post("/{caixa_id}/abrir", status_code=status.HTTP_201_CREATED, dependencies=[Depends(require_module("caixa"))])
 def abrir_movimento(
     caixa_id: int,
     db: DBDependency,
@@ -78,7 +78,7 @@ def abrir_movimento(
     return {"movimento_id": mid}
 
 
-@router.post("/{movimento_id}/fechar")
+@router.post("/{movimento_id}/fechar", dependencies=[Depends(require_module("caixa"))])
 def fechar_movimento(movimento_id: int, db: DBDependency, request: Request, current_user: Usuario = Depends(get_current_user)):
     service = CaixaService(db)
     try:

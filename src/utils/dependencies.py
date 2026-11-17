@@ -102,3 +102,40 @@ def require_role(allowed_roles: Set[str]):
         return current_user
 
     return role_checker
+
+
+LEGACY_MODULES = frozenset({"pdv", "caixa", "atendimentos", "doacoes"})
+MODULES = frozenset({*LEGACY_MODULES, "estoque", "relatorios", "eventos"})
+MODULE_FEATURES = {
+    "pdv": "habilitar_pdv",
+    "atendimentos": "habilitar_atendimentos",
+    "doacoes": "habilitar_doacoes",
+}
+
+
+def require_module(*modules: str, legacy_admin_only: bool = False, legacy_allow: bool = False, check_features: bool = True):
+    """Autoriza qualquer um dos módulos, mantendo o acesso operacional legado."""
+    if not modules or not set(modules) <= MODULES:
+        raise ValueError("Módulo de permissão inválido.")
+
+    def module_checker(
+        db: DBDependency,
+        current_user: Annotated[Usuario, Depends(get_current_user)],
+    ):
+        if current_user.role == "Administrador":
+            allowed = set(modules)
+        elif current_user.permissoes is None:
+            allowed = set() if legacy_admin_only else set(modules) if legacy_allow else set(modules) & LEGACY_MODULES
+        else:
+            allowed = set(modules) & set(current_user.permissoes)
+        if not allowed:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso ao módulo negado.")
+        if check_features and all(module in MODULE_FEATURES for module in allowed):
+            from src.modules.organizacao import OrganizacaoService
+
+            config = OrganizacaoService(db).obter_configuracoes()
+            if not any(getattr(config, MODULE_FEATURES[module]) for module in allowed):
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Módulo desabilitado pela organização.")
+        return current_user
+
+    return module_checker

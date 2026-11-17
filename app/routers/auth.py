@@ -4,9 +4,10 @@ from fastapi import APIRouter, Depends, status, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 from typing import Annotated
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, get_current_user
 from src.modules.usuario import UsuarioService
-from src.utils.schemas import Token, LoginRequest, ChangePasswordRequest
+from src.utils.schemas import Token, LoginRequest, ChangePasswordRequest, UsuarioResponse
+from src.utils.models import Usuario
 from src.utils.security import create_access_token
 
 router = APIRouter(
@@ -48,7 +49,13 @@ async def login_for_access_token(
         "user_id": usuario.id,
         "role": usuario.role,
         "require_password_change": getattr(usuario, "require_password_change", False),
+        "permissoes": usuario.permissoes,
     }
+
+
+@router.get("/auth/me", response_model=UsuarioResponse)
+def current_session(current_user: Annotated[Usuario, Depends(get_current_user)]):
+    return UsuarioResponse.model_validate(current_user)
 
 
 @router.post("/change-password")

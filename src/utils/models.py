@@ -20,6 +20,17 @@ class OrganizacaoConfig:
     termo_atividade: str = "Entidade / Serviço"
     id: Optional[int] = 1
     alias_evento: str = "Evento"
+    subtitulo: Optional[str] = None
+    registro: Optional[str] = None
+    cidade_uf: Optional[str] = None
+    telefone_contato: Optional[str] = None
+    termo_atendente_plural: str = "Médiuns / Cambones"
+    termo_atividade_plural: str = "Entidades / Serviços"
+    alias_evento_plural: str = "Eventos"
+    habilitar_pdv: bool = True
+    habilitar_atendimentos: bool = True
+    habilitar_doacoes: bool = True
+    exigir_documento_atendimento: bool = False
 
 
 @dataclass
@@ -43,6 +54,7 @@ class Usuario:
     role: str = "Vendedor"
     status: str = "Ativo"
     id: Optional[int] = None
+    permissoes: Optional[list[str]] = None
 
 
 @dataclass

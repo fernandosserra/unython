@@ -7,10 +7,11 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useOrgStore } from '../store/useOrgStore';
 import type { Evento, MovimentoCaixa } from '../types';
 import { ChangePasswordModal } from './ChangePasswordModal';
+import { availableTabs, type AppTab } from '../permissions';
 
 interface NavbarProps {
-  currentTab: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes';
-  setCurrentTab: (tab: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes') => void;
+  currentTab: AppTab | null;
+  setCurrentTab: (tab: AppTab) => void;
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
   onOpenMobileModal: () => void;
@@ -28,7 +29,7 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'caixa' as const, label: 'Caixa', mobile: 'Caixa', icon: Wallet },
     { id: 'doacoes' as const, label: 'Doações', mobile: 'Doações', icon: HeartHandshake },
     { id: 'admin' as const, label: 'Administração', mobile: 'Admin', icon: Settings },
-  ].filter((item) => item.id !== 'admin' || user?.role === 'Administrador');
+  ].filter((item) => availableTabs(user, config).includes(item.id));
 
   return (
     <>
