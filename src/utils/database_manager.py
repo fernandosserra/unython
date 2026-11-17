@@ -64,7 +64,7 @@ def load_db_config() -> dict:
 DB_CONFIG = load_db_config()
 
 
-def ensure_database_exists() -> bool:
+def ensure_database_exists(config: Optional[dict] = None) -> bool:
     """
     Verifica se o banco de dados de destino existe no PostgreSQL.
     Caso não exista, conecta ao banco padrão 'postgres' e cria o banco automaticamente.
@@ -73,7 +73,7 @@ def ensure_database_exists() -> bool:
     if _db_checked:
         return True
 
-    cfg = load_db_config()
+    cfg = config if config is not None else load_db_config()
     target_db = cfg.get("dbname", "unython")
     host = cfg.get("host", "localhost")
     user = cfg.get("user", "postgres")
@@ -135,12 +135,20 @@ class DatabaseManager:
     utilizando pool de conexões para alta performance e criação automática do banco.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        db_config: Optional[dict] = None,
+        *,
+        create_database: bool = True,
+    ):
         self.conn = None
         self.cursor = None
         self._pool: Optional[pool.ThreadedConnectionPool] = None
+        self._db_config = db_config if db_config is not None else load_db_config()
+        self._create_database = create_database
+        self._use_pool = db_config is None and create_database
 
-        cfg = load_db_config()
+        cfg = self._db_config
         self.DB_HOST = cfg.get("host")
         self.DB_NAME = cfg.get("dbname")
         self.DB_USER = cfg.get("user")
@@ -149,25 +157,38 @@ class DatabaseManager:
 
     def connect(self):
         """Estabelece a conexão com o PostgreSQL (via pool com fallback direto)."""
-        ensure_database_exists()
-        try:
-            self._pool = get_connection_pool()
-            self.conn = self._pool.getconn()
-            self.cursor = self.conn.cursor()
-        except Exception:
+        if self._create_database:
+            ensure_database_exists(self._db_config)
+
+        if self._use_pool:
             try:
-                self.conn = psycopg2.connect(
-                    host=self.DB_HOST,
-                    database=self.DB_NAME,
-                    user=self.DB_USER,
-                    password=self.DB_PASS,
-                    port=self.DB_PORT,
-                    options="-c client_encoding=UTF8",
-                )
+                self._pool = get_connection_pool()
+                self.conn = self._pool.getconn()
                 self.cursor = self.conn.cursor()
+            except Exception:
                 self._pool = None
+                self.conn = None
+
+        if self.conn is None:
+            connection_options = {"options": "-c client_encoding=UTF8"}
+            try:
+                if self._db_config.get("dsn"):
+                    self.conn = psycopg2.connect(self._db_config["dsn"], **connection_options)
+                else:
+                    self.conn = psycopg2.connect(
+                        host=self.DB_HOST,
+                        database=self.DB_NAME,
+                        user=self.DB_USER,
+                        password=self.DB_PASS,
+                        port=self.DB_PORT,
+                        **connection_options,
+                    )
+                self.cursor = self.conn.cursor()
             except Exception as direct_err:
-                print(f"ERRO FATAL: Falha ao conectar ao PostgreSQL '{self.DB_NAME}'. Erro: {_safe_str(direct_err)}")
+                print(
+                    f"ERRO FATAL: Falha ao conectar ao PostgreSQL '{self.DB_NAME}'. "
+                    f"Erro: {_safe_str(direct_err)}"
+                )
                 raise
 
     def execute_query(

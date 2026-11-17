@@ -37,11 +37,10 @@ DIST_DIR = BASE_DIR / "frontend-web" / "dist"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Garante tabelas criadas e superusuário padrão no startup da API."""
+    """Garante o superusuário padrão após as migrações do banco."""
+    dbm = DatabaseManager()
+    dbm.connect()
     try:
-        dbm = DatabaseManager()
-        dbm.connect()
-        dbm.create_tables()
         usuario_service = UsuarioService(dbm)
 
         email = "admin@unython.local"
@@ -58,9 +57,8 @@ async def lifespan(app: FastAPI):
             )
             usuario_service.registrar_usuario(usuario, password, require_password_change=True)
             print(f"[bootstrap] Superusuário criado com email {email}")
+    finally:
         dbm.disconnect()
-    except Exception as e:
-        print(f"[bootstrap] Alerta ao conectar/inicializar banco: {e}")
     yield
 
 

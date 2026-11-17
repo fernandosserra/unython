@@ -8,7 +8,6 @@ Orquestrador do Unython:
 - Flags:
     python app/main.py                    # Modo padrão integrado (FastAPI + SPA React embutida)
     python app/main.py --spa-dev          # Sobe API (8000) + Vite React Dev Server com HMR (3000)
-    python app/main.py --streamlit        # Sobe API (8000) + Interface Streamlit (8501)
     python app/main.py --api-only         # Apenas API sem interfaces
 """
 
@@ -92,33 +91,13 @@ def start_vite_dev(port: int) -> subprocess.Popen:
     return subprocess.Popen(cmd, cwd=FRONTEND_WEB, env=_base_env())
 
 
-def start_streamlit(port: int, api_url: str) -> subprocess.Popen:
-    """Inicia o frontend legado em Streamlit."""
-    cmd: List[str] = [
-        _get_python_executable(),
-        "-m",
-        "streamlit",
-        "run",
-        str(ROOT / "frontend" / "interface.py"),
-        "--server.port",
-        str(port),
-        "--server.headless",
-        "true",
-    ]
-    env = _base_env()
-    env["UNYTHON_API_URL"] = api_url
-    return subprocess.Popen(cmd, cwd=ROOT, env=env)
-
-
 def main():
     parser = argparse.ArgumentParser(description="Orquestrador Unython - Sistema de Gestão para ONGs.")
     parser.add_argument("--api-only", action="store_true", help="Inicia apenas o servidor de API.")
     parser.add_argument("--spa-dev", action="store_true", help="Inicia Vite Dev Server (React) com HMR.")
-    parser.add_argument("--streamlit", action="store_true", help="Inicia interface em Streamlit.")
     parser.add_argument("--api-host", default="0.0.0.0", help="Host da API (0.0.0.0 para acesso via celular/Wi-Fi).")
     parser.add_argument("--api-port", type=int, default=8000, help="Porta da API.")
     parser.add_argument("--spa-port", type=int, default=3000, help="Porta do Vite Dev Server.")
-    parser.add_argument("--ui-port", type=int, default=8501, help="Porta do Streamlit.")
     parser.add_argument("--no-reload", action="store_true", help="Desabilita auto-reload do Uvicorn.")
     args = parser.parse_args()
 
@@ -137,11 +116,6 @@ def main():
         if args.spa_dev:
             print(f"[orquestrador] Subindo Vite Dev Server em http://127.0.0.1:{args.spa_port}")
             procs.append(start_vite_dev(args.spa_port))
-
-        # 3. Streamlit (Opcional para painéis analíticos legados)
-        if args.streamlit:
-            print(f"[orquestrador] Subindo Interface Streamlit em http://127.0.0.1:{args.ui_port}")
-            procs.append(start_streamlit(args.ui_port, api_url))
 
         # Aguarda interrupção
         while True:

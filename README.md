@@ -18,8 +18,6 @@ Unython
  │     ├── src/store/      # Gerenciamento de estado reativo (Zustand: Carrinho e Auth JWT)
  │     └── dist/           # Build estático otimizado (servido diretamente pelo FastAPI em produção)
  │
- ├── frontend/             # Interface analítica legada (Streamlit para dashboards)
- │
  ├── src/modules/          # Regras de Negócio e Serviços de Domínio
  │     ├── venda.py        # Transações atômicas de venda com baixa de estoque
  │     ├── estoque.py      # Movimentações e cálculo consolidado de saldo
@@ -53,7 +51,21 @@ password = "sua_senha_aqui"
 port = 5432
 ```
 
-> **Dica:** O `DatabaseManager` cria todas as tabelas e índices automaticamente no primeiro arranque com ordenação estrita de chaves estrangeiras.
+O schema é gerenciado por migrações Alembic; a API não cria nem altera tabelas no startup. Aplique as migrações antes de iniciar a API.
+
+### Migrações versionadas
+
+Para criar ou atualizar o schema do banco configurado em `config/secrets.toml` ou nas variáveis PostgreSQL:
+```bash
+alembic upgrade head
+```
+
+Em bancos existentes, faça backup antes de atualizar. A revisão inicial usa DDL idempotente para preservar tabelas e dados existentes. Se o schema já corresponde exatamente ao baseline, também é possível registrar esse estado sem executar a revisão:
+```bash
+alembic stamp head
+```
+
+A revisão baseline pode ser revertida com `alembic downgrade base`, mas isso remove as tabelas e os dados; execute somente após backup e com um plano de restauração.
 
 Ao atualizar uma instalação existente, faça backup do PostgreSQL antes de iniciar a nova versão. Na inicialização, o estoque mínimo dos produtos existentes é definido como zero e os facilitadores anteriormente vinculados a usuários são copiados para o novo cadastro, preservando os agendamentos.
 
@@ -81,12 +93,6 @@ python app/main.py --spa-dev
 ```
 Acesse o frontend em: **`http://127.0.0.1:3000/`**
 
-### 3. Modo Dashboard Streamlit (Opcional)
-```bash
-python app/main.py --streamlit
-```
-Acesse em: **`http://127.0.0.1:8501/`**
-
 ---
 
 ## 🔐 Autenticação e Primeiro Acesso
@@ -112,10 +118,19 @@ O build compilado em `dist/` é instantaneamente reconhecido pelo FastAPI.
 
 ## 🧪 Testes Automatizados
 
-Os testes de integração **apagam os dados das tabelas antes e depois de cada teste**. Execute-os apenas com um PostgreSQL descartável e isolado, configurado em `config/secrets.toml` ou variáveis de ambiente:
+Os testes de integração **apagam os dados das tabelas antes e depois de cada teste**. Eles exigem `TEST_DATABASE_URL` apontando para um banco PostgreSQL dedicado cujo nome termine em `_test`; não usam `secrets.toml`, não criam o banco automaticamente e abortam antes de conectar se a variável estiver ausente ou for insegura. Crie o banco de testes isolado e aplique o baseline:
 ```bash
+createdb unython_test
+```
+
+No PowerShell:
+```powershell
+$env:TEST_DATABASE_URL = "postgresql://test_user:senha@localhost:5432/unython_test"
+alembic upgrade head
 pytest -vv tests/teste_fluxo_geral.py
 ```
+
+O `alembic upgrade head` usa `TEST_DATABASE_URL` quando essa variável está definida. Nunca aponte essa URL para bancos de desenvolvimento ou produção.
 
 Os testes isolados de projeção e facilitadores não usam PostgreSQL:
 ```bash

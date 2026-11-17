@@ -4,10 +4,6 @@ uvicorn[standard]
 pydantic
 python-multipart
 
-# Interface Streamlit e Cliente HTTP
-streamlit
-requests
-
 # Persistência e Banco de Dados
 psycopg2-binary
 SQLAlchemy

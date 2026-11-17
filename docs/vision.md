@@ -8,8 +8,8 @@ O Unython segue o princípio do **Domínio Orientado a Serviços** com forte sep
 
 | Camada | Pasta | Responsabilidade | Tecnologias Chave |
 | :--- | :--- | :--- | :--- |
-| **Apresentação / API** | `app/` | API REST e orquestração de processos. | FastAPI, Uvicorn, Pydantic |
-| **Frontend / Interface** | `frontend/` | Interface web e PDV para operadores e administradores. | Streamlit, Requests |
+| **Apresentação / API** | `app/` | API REST e orquestração de processos; entrega a SPA em produção. | FastAPI, Uvicorn, Pydantic |
+| **Frontend / Interface** | `frontend-web/` | SPA web e PDV para operadores e administradores. | React, TypeScript, Vite |
 | **Serviço/Lógica** | `src/modules/` | Regras de negócio puras (Vendas, Estoque, Relatórios, etc.). **Desacoplado de persistência.** | Python Classes (Domain Services) |
 | **Utilidade/Infra** | `src/utils/` | Estruturas de dados (`models.py`), schemas (`schemas.py`), segurança (`security.py`) e persistência (`database_manager.py`). | `dataclasses`, `psycopg2`, `pyjwt`, `bcrypt` |
 | **Persistência** | PostgreSQL | Armazenamento relacional ACID com constraints de Foreign Keys e índices. | PostgreSQL 14+ |
