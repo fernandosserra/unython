@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import axios from 'axios';
 import {
   Users,
   Search,
@@ -38,6 +39,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   // Eventos disponíveis (abertos e agendados para o futuro)
   const [eventosDisponiveis, setEventosDisponiveis] = useState<Evento[]>([]);
   const [selectedEventoId, setSelectedEventoId] = useState<number | null>(null);
+  const latestFilaRequest = useRef(0);
+  const latestEventosRequest = useRef(0);
 
   // Estados de dados da fila e pré-agendamentos
   const [fila, setFila] = useState<Agendamento[]>([]);
@@ -85,26 +88,29 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
   // Carrega lista de eventos futuros e abertos
   const fetchEventos = async () => {
+    const request = ++latestEventosRequest.current;
     try {
-      const resp = await apiClient.get('/eventos/ativos-e-futuros');
+      const [resp, dataResp] = await Promise.all([
+        apiClient.get('/eventos/ativos-e-futuros'),
+        apiClient.get('/eventos/data-operacional'),
+      ]);
+      if (request !== latestEventosRequest.current) return;
       const list: Evento[] = resp.data || [];
       setEventosDisponiveis(list);
 
       // Define evento selecionado inicialmente
-      if (!selectedEventoId) {
-        if (activeEvento) {
-          setSelectedEventoId(activeEvento.id);
-        } else if (list.length > 0) {
-          setSelectedEventoId(list[0].id);
-        }
-      }
+      setSelectedEventoId(current => current && list.some(evento => evento.id === current)
+        ? current : list.find(evento => evento.data_evento === dataResp.data.data_operacional)?.id ?? list[0]?.id ?? null);
     } catch (err) {
+      if (request !== latestEventosRequest.current) return;
       console.error('Erro ao buscar eventos:', err);
+      showFeedback('error', `Não foi possível carregar os ${orgConfig.alias_evento}.`);
     }
   };
 
   // Carrega fila ativa e pré-agendados do evento selecionado
   const fetchFilaEPreAgendados = async (eventoId?: number) => {
+    const request = ++latestFilaRequest.current;
     const id = eventoId || selectedEventoId;
     if (!id) {
       setFila([]);
@@ -120,6 +126,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         apiClient.get(`/agendamentos/pre-agendados/${id}`),
       ]);
 
+      if (request !== latestFilaRequest.current) return;
       if (filaResp.status === 'fulfilled') {
         setFila(filaResp.value.data || []);
       }
@@ -133,7 +140,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
     } catch (err) {
       console.error('Erro ao buscar dados do evento:', err);
     } finally {
-      setIsLoading(false);
+      if (request === latestFilaRequest.current) setIsLoading(false);
     }
   };
 
@@ -166,22 +173,22 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   };
 
   useEffect(() => {
-    fetchEventos();
     fetchPessoas();
     fetchFacilitadores();
     fetchAtividades();
   }, []);
 
   useEffect(() => {
-    if (activeEvento && (!selectedEventoId || selectedEventoId !== activeEvento.id)) {
+    if (activeEvento) {
       setSelectedEventoId(activeEvento.id);
     }
-  }, [activeEvento]);
+    void fetchEventos();
+  }, [activeEvento?.id]);
 
   useEffect(() => {
-    if (selectedEventoId) {
-      fetchFilaEPreAgendados(selectedEventoId);
-    }
+    setFila([]);
+    setPreAgendados([]);
+    void fetchFilaEPreAgendados(selectedEventoId ?? undefined);
   }, [selectedEventoId]);
 
   // Acolhimento Presencial / Encaixe na Porta (Emite senha imediata)
@@ -361,9 +368,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
   // Iniciar / Abrir um evento agendado
   const handleIniciarEvento = async (idEvento: number) => {
-    const aviso = activeEvento && activeEvento.id !== idEvento
-      ? `Iniciar ${orgConfig.alias_evento} fechará "${activeEvento.nome}". Continuar?`
-      : `Deseja iniciar ${orgConfig.alias_evento} para a operação de hoje?`;
+    const aviso = `Deseja iniciar ${orgConfig.alias_evento} para a operação de hoje?`;
     if (!confirm(aviso)) return;
     try {
       await apiClient.post(`/eventos/${idEvento}/iniciar`);
@@ -371,8 +376,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       showFeedback('success', `${orgConfig.alias_evento} aberto para operação com sucesso!`);
       await fetchEventos();
       setSelectedEventoId(idEvento);
-    } catch {
-      showFeedback('error', `Não foi possível iniciar ${orgConfig.alias_evento}. Verifique a conexão e o status antes de tentar novamente.`);
+    } catch (error) {
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      showFeedback('error', typeof detail === 'string' ? detail : `Não foi possível iniciar ${orgConfig.alias_evento}. Verifique a conexão e o status antes de tentar novamente.`);
     }
   };
 

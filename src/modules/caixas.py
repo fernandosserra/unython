@@ -55,7 +55,7 @@ class CaixaService:
     def validar_evento_abertura(self, id_evento: int) -> Evento:
         """Retorna o evento elegível para abertura de caixa na data operacional atual."""
         columns, data = self.db.execute_query(
-            "SELECT id, nome, data_evento, tipo, status FROM eventos WHERE id = %s",
+            "SELECT id, nome, data_evento, tipo, status FROM eventos WHERE id = %s FOR UPDATE",
             (id_evento,),
             fetch_one=True,
         )

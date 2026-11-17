@@ -20,7 +20,7 @@ const hoje = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
-export function DoacoesView() {
+export function DoacoesView({ activeEvento }: { activeEvento: Evento | null }) {
   const aliasEvento = useOrgStore((state) => state.config.alias_evento);
   const [doacoes, setDoacoes] = useState<Doacao[] | null>(null);
   const [eventos, setEventos] = useState<Evento[]>([]);
@@ -53,7 +53,7 @@ export function DoacoesView() {
     try {
       await apiClient.post('/doacoes/', {
         valor, data, nome_doador: doador.trim() || null, forma_pagamento: pagamento.trim() || null,
-        descricao: descricao.trim() || null, id_evento: evento ? Number(evento) : null,
+        descricao: descricao.trim() || null, id_evento: activeEvento?.id ?? (evento ? Number(evento) : null),
       });
       setValor(''); setDoador(''); setPagamento(''); setDescricao(''); setEvento(''); setData(hoje());
       await loadDoacoes();
@@ -78,7 +78,7 @@ export function DoacoesView() {
       <h1 className="text-2xl font-black text-slate-900">Doações financeiras</h1>
       <p className="text-sm text-slate-600">Registre receitas com ou sem {aliasEvento}, sem abrir uma sessão de caixa.</p>
       {error && <p role="alert" className="p-3 bg-rose-50 text-rose-800 rounded-xl">{error}</p>}
-      {eventosError && <p role="alert" className="p-3 bg-amber-50 text-amber-800 rounded-xl">Não foi possível carregar {aliasEvento}; você ainda pode registrar uma doação sem vinculá-lo.</p>}
+      {eventosError && <p role="alert" className="p-3 bg-amber-50 text-amber-800 rounded-xl">Não foi possível carregar a lista de {aliasEvento}. O evento ativo continuará sendo vinculado automaticamente.</p>}
       {success && <p role="status" className="p-3 bg-emerald-50 text-emerald-800 rounded-xl">{success}</p>}
       <form onSubmit={save} className="bg-white rounded-2xl p-5 space-y-3">
         <h2 className="font-bold">Registrar doação</h2>
@@ -87,10 +87,10 @@ export function DoacoesView() {
           <label className="text-xs font-bold">Data<input required type="date" value={data} onChange={e => setData(e.target.value)} className="block w-full border rounded-lg p-2" /></label>
           <label className="text-xs font-bold">Doador (opcional)<input maxLength={255} value={doador} onChange={e => setDoador(e.target.value)} className="block w-full border rounded-lg p-2" /></label>
           <label className="text-xs font-bold">Forma de pagamento (opcional)<input maxLength={100} value={pagamento} onChange={e => setPagamento(e.target.value)} placeholder="Ex: PIX, dinheiro" className="block w-full border rounded-lg p-2" /></label>
-          <label className="text-xs font-bold">{aliasEvento} (opcional)<select value={evento} onChange={e => setEvento(e.target.value)} className="block w-full border rounded-lg p-2">
+          {activeEvento ? <p className="text-xs font-bold">{aliasEvento} ativo: <span className="font-normal">{activeEvento.nome}</span></p> : <label className="text-xs font-bold">{aliasEvento} (opcional)<select value={evento} onChange={e => setEvento(e.target.value)} className="block w-full border rounded-lg p-2">
             <option value="">Sem {aliasEvento}</option>
             {eventos.map(item => <option key={item.id} value={item.id}>{item.nome} ({item.data_evento.split('-').reverse().join('/')})</option>)}
-          </select></label>
+          </select></label>}
           <label className="text-xs font-bold">Observações (opcional)<input value={descricao} onChange={e => setDescricao(e.target.value)} className="block w-full border rounded-lg p-2" /></label>
         </div>
         <button disabled={busy} className="bg-emerald-700 text-white rounded-lg p-2 font-bold text-sm">Registrar doação</button>

@@ -26,14 +26,16 @@ def listar_doacoes(db: DBDependency, current_user: CurrentUser):
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def registrar_doacao(payload: DoacaoCreate, db: DBDependency, current_user: CurrentUser):
-    if payload.id_evento is not None:
+    _, ativo = db.execute_query("SELECT id FROM eventos WHERE status = 'Aberto' LIMIT 1", fetch_one=True)
+    if not ativo and payload.id_evento is not None:
         _, evento = db.execute_query("SELECT id FROM eventos WHERE id = %s", (payload.id_evento,), fetch_one=True)
         if not evento:
             raise HTTPException(status_code=400, detail="Evento não encontrado.")
     doacao_id = db.execute_query(
         """INSERT INTO movimentos_financeiros
            (data_registro, id_usuario, tipo_movimento, valor, descricao, categoria, id_evento, nome_doador, forma_pagamento)
-           VALUES (%s, %s, 'Receita', %s, %s, 'Doacao', %s, %s, %s) RETURNING id""",
+           VALUES (%s, %s, 'Receita', %s, %s, 'Doacao',
+                   COALESCE((SELECT id FROM eventos WHERE status = 'Aberto' LIMIT 1), %s), %s, %s) RETURNING id""",
         (datetime.combine(payload.data, time(12)), current_user.id, payload.valor,
          payload.descricao, payload.id_evento, payload.nome_doador, payload.forma_pagamento),
         commit=True,

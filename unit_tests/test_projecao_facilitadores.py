@@ -36,7 +36,7 @@ class MemoryDB:
             CREATE TABLE agendamentos (id INTEGER PRIMARY KEY, id_pessoa INTEGER, id_facilitador INTEGER,
                 data_hora TEXT, tipo_servico TEXT, status TEXT, id_evento INTEGER, compareceu TEXT,
                 numero_senha TEXT, preferencial BOOLEAN, ordem_chegada INTEGER, observacoes TEXT, id_atividade INTEGER);
-            CREATE TABLE eventos (id INTEGER PRIMARY KEY, status TEXT, nome TEXT);
+            CREATE TABLE eventos (id INTEGER PRIMARY KEY, status TEXT, nome TEXT, data_evento DATE);
             CREATE TABLE movimentos_financeiros (id INTEGER PRIMARY KEY, data_registro TEXT, id_usuario INTEGER,
                 tipo_movimento TEXT, valor NUMERIC, descricao TEXT, categoria TEXT, id_evento INTEGER,
                 nome_doador TEXT, forma_pagamento TEXT, status TEXT DEFAULT 'Ativo');
@@ -129,13 +129,22 @@ def test_projecao_vazia(db):
     assert relatorios.get_projecao_estoque(db) == {"itens": [], "total_previsto": Decimal("0"), "sem_preco": []}
 
 
-def test_iniciar_evento_inexistente_nao_fecha_evento_aberto(db):
-    db.conn.executemany("INSERT INTO eventos (id, status) VALUES (?, ?)", [(1, "Aberto"), (2, "Agendado")])
+def test_iniciar_evento_nao_fecha_evento_aberto(db):
+    db.conn.executemany("INSERT INTO eventos (id, status, data_evento) VALUES (?, ?, ?)",
+                        [(1, "Aberto", date.today()), (2, "Agendado", date.today())])
     service = EventoService(db)
     assert not service.abrir_evento_existente(99)
     assert db.conn.execute("SELECT status FROM eventos WHERE id = 1").fetchone()[0] == "Aberto"
+    assert not service.abrir_evento_existente(2)
+    assert db.conn.execute("SELECT status FROM eventos ORDER BY id").fetchall() == [("Aberto",), ("Agendado",)]
+    assert service.fechar_evento(1)
     assert service.abrir_evento_existente(2)
-    assert db.conn.execute("SELECT status FROM eventos ORDER BY id").fetchall() == [("Fechado",), ("Aberto",)]
+
+
+def test_iniciar_evento_rejeita_data_diferente(db):
+    db.conn.execute("INSERT INTO eventos (id, status, data_evento) VALUES (?, ?, ?)",
+                    (1, "Agendado", date(2000, 1, 1)))
+    assert not EventoService(db).abrir_evento_existente(1)
 
 
 def test_preco_ausente_e_zero_sao_distintos_na_projecao(db):
@@ -185,6 +194,16 @@ def test_doacao_sem_evento_integra_saldo_e_cancelamento(db):
         DoacaoCreate(valor=Decimal("1.234"), data=date.today())
     with pytest.raises(HTTPException):
         doacoes.registrar_doacao(DoacaoCreate(valor=1, data=date.today(), id_evento=999), db, usuario)
+
+
+def test_doacao_prioriza_evento_aberto_ao_id_explicito(db):
+    db.conn.executemany("INSERT INTO eventos (id, status, nome) VALUES (?, ?, ?)",
+                        [(1, "Aberto", "Evento ativo"), (2, "Agendado", "Outro evento")])
+    usuario = Usuario(id=7, nome="Operador", email="operador@example.test", funcao="Operador")
+    for evento in (None, 2):
+        doacao = doacoes.registrar_doacao(DoacaoCreate(valor=1, data=date.today(), id_evento=evento), db, usuario)
+        row = db.conn.execute("SELECT id_evento FROM movimentos_financeiros WHERE id = ?", (doacao["id"],)).fetchone()
+        assert row[0] == 1
 
 
 def test_config_legada_nao_apaga_termo_atividade(db):

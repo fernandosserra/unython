@@ -68,6 +68,8 @@ alembic upgrade head
 
 A revisão baseline pode ser revertida com `alembic downgrade base`, mas isso remove as tabelas e os dados; execute somente após backup e com um plano de restauração.
 
+A migração `20261117_06` exige no máximo um evento com status `Aberto`; se houver duplicatas antigas, encerre-as explicitamente antes de executar a migração. Eventos agendados só podem ser abertos na data operacional do servidor. O encerramento exige confirmação adicional quando há caixa aberto vinculado; essas transições são auditadas. Doações registradas durante um evento aberto são vinculadas a ele automaticamente.
+
 A configuração da organização inclui `alias_evento`, com padrão `Evento`. O endpoint `GET /api/organizacao/config` permanece acessível; `PUT /api/organizacao/config` exige administrador. Payloads antigos que omitem o campo preservam o valor já configurado.
 
 Em **Usuários & Permissões**, administradores podem conceder módulos individualmente. Administradores têm acesso irrestrito; para usuários antigos, `permissoes = NULL` preserva o acesso operacional legado, enquanto `[]` não concede nenhum módulo. Alterações são registradas em `audit_logs` e aplicadas nas requisições seguintes. As configurações da organização também permitem definir identidade, vocabulário e módulos operacionais; quando exigido, o documento é validado no servidor antes do atendimento.

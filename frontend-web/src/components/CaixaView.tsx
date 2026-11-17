@@ -17,12 +17,14 @@ interface CaixaViewProps {
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
   onRefreshState: () => Promise<void>;
+  onCloseEvento: () => Promise<boolean>;
 }
 
 export const CaixaView: React.FC<CaixaViewProps> = ({
   activeEvento,
   activeMovimento,
   onRefreshState,
+  onCloseEvento,
 }) => {
   const { user } = useAuthStore();
   const aliasEvento = useOrgStore((state) => state.config.alias_evento);
@@ -115,14 +117,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
 
   const handleFecharEvento = async () => {
     if (!activeEvento) return;
-    if (!confirm(`Deseja realmente fechar ${aliasEvento} "${activeEvento.nome}"?`)) return;
-
     setIsLoading(true);
     setMessage(null);
     try {
-      await apiClient.post(`/eventos/${activeEvento.id}/fechar`);
-      setMessage({ type: 'success', text: `${aliasEvento} encerrado com sucesso.` });
-      await onRefreshState();
+      if (await onCloseEvento()) {
+        setMessage({ type: 'success', text: `${aliasEvento} encerrado com sucesso.` });
+        await fetchEventos();
+      }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.detail || `Erro ao encerrar ${aliasEvento}.` });
     } finally {

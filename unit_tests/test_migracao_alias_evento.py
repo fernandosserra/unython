@@ -21,6 +21,15 @@ def test_migracao_alias_evento_offline(monkeypatch):
     assert "DROP COLUMN IF EXISTS alias_evento" in output.getvalue()
 
 
+def test_migracao_limita_eventos_abertos(monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", "postgresql://localhost/unython")
+    monkeypatch.setattr(logging.config, "fileConfig", lambda *args, **kwargs: None)
+    output = StringIO()
+    config = Config("alembic.ini", output_buffer=output)
+    command.upgrade(config, "20261117_05:20261117_06", sql=True)
+    assert "CREATE UNIQUE INDEX ux_eventos_unico_aberto ON eventos ((status)) WHERE status = 'Aberto'" in output.getvalue()
+
+
 def test_bootstrap_cria_e_atualiza_alias_evento(monkeypatch):
     queries = []
     monkeypatch.setattr(DatabaseManager, "execute_query", lambda self, query, **kwargs: queries.append(query))

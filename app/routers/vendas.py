@@ -21,6 +21,9 @@ router = APIRouter(
 def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_evento: int, request_id: str, valor_abertura: Decimal = Decimal("0.00")) -> int:
     """Garante um movimento de caixa aberto para o evento e retorna o id_movimento."""
     caixa_service = CaixaService(db)
+    _, evento = db.execute_query("SELECT status FROM eventos WHERE id = %s FOR UPDATE", (id_evento,), fetch_one=True)
+    if not evento or evento[0] not in ("Aberto", "Agendado"):
+        raise HTTPException(status_code=400, detail="O evento não está aberto nem agendado.")
     if caixa_id:
         cid = caixa_id
     else:

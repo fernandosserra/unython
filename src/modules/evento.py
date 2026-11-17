@@ -12,10 +12,17 @@ class EventoService:
     def __init__(self, db_manager: DatabaseManager):
         self.db = db_manager
 
-    def registrar_evento(self, evento: Evento) -> Optional[int]:
+    def registrar_evento(self, evento: Evento, *, commit: bool = True) -> Optional[int]:
         query = "INSERT INTO eventos (nome, data_evento, tipo, status) VALUES (%s, %s, %s, %s) RETURNING id"
         params = (evento.nome, evento.data_evento, evento.tipo, evento.status)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
+
+    def buscar_evento(self, id_evento: int, *, for_update: bool = False) -> Optional[Evento]:
+        query = "SELECT id, nome, data_evento, tipo, status FROM eventos WHERE id = %s"
+        if for_update:
+            query += " FOR UPDATE"
+        columns, result = self.db.execute_query(query, (id_evento,), fetch_one=True)
+        return Evento(**dict(zip(columns, result))) if result else None
 
     def buscar_evento_aberto(self) -> Optional[Evento]:
         query = "SELECT id, nome, data_evento, tipo, status FROM eventos WHERE status = 'Aberto' LIMIT 1"
@@ -24,20 +31,19 @@ class EventoService:
             return Evento(**dict(zip(columns, result)))
         return None
 
-    def abrir_evento_existente(self, id_evento: int) -> bool:
-        """Abre um evento previamente agendado, garantindo que seja o evento ativo."""
+    def abrir_evento_existente(self, id_evento: int, *, commit: bool = True) -> bool:
+        """Abre um evento agendado para a data operacional, sem alterar outros eventos."""
         query = """
-        UPDATE eventos
-        SET status = CASE WHEN id = %s THEN 'Aberto' ELSE 'Fechado' END
-        WHERE (status = 'Aberto' OR id = %s)
-          AND EXISTS (SELECT 1 FROM eventos alvo WHERE alvo.id = %s AND alvo.status = 'Agendado')
+        UPDATE eventos SET status = 'Aberto'
+        WHERE id = %s AND status = 'Agendado' AND data_evento = %s
+          AND NOT EXISTS (SELECT 1 FROM eventos WHERE status = 'Aberto')
         """
-        return bool(self.db.execute_query(query, (id_evento, id_evento, id_evento),
-                                          commit=True, return_rowcount=True))
+        return bool(self.db.execute_query(query, (id_evento, date.today()),
+                                          commit=commit, return_rowcount=True))
 
-    def fechar_evento(self, id_evento: int) -> bool:
-        query = "UPDATE eventos SET status = 'Fechado' WHERE id = %s"
-        return self.db.execute_query(query, (id_evento,), commit=True)
+    def fechar_evento(self, id_evento: int, *, commit: bool = True) -> bool:
+        query = "UPDATE eventos SET status = 'Fechado' WHERE id = %s AND status = 'Aberto'"
+        return bool(self.db.execute_query(query, (id_evento,), commit=commit, return_rowcount=True))
 
     def buscar_eventos_futuros_ou_abertos(self) -> List[Evento]:
         """Busca eventos abertos ou agendados para o futuro."""

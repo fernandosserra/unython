@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api_main import app
-from app.routers import caixas, estoque, usuarios, vendas
+from app.routers import caixas, estoque, eventos, usuarios, vendas
 from src.modules.caixas import CaixaService
 from src.modules.estoque import EstoqueService
 from src.modules.organizacao import OrganizacaoService
@@ -62,6 +62,82 @@ def test_data_operacional_exposta_pelo_servidor(api):
 
     assert response.status_code == 200
     assert response.json() == {"data_operacional": date.today().isoformat()}
+
+
+@pytest.mark.parametrize("fails", [False, True])
+def test_iniciar_evento_auditoria_e_rollback(api, monkeypatch, fails):
+    db, client = api
+    service = MagicMock()
+    service.buscar_evento.return_value = Evento(id=3, nome="Gira", data_evento=date.today(), tipo="Atendimento", status="Agendado")
+    service.abrir_evento_existente.return_value = True
+    monkeypatch.setattr(eventos, "EventoService", lambda db: service)
+    audit = MagicMock(side_effect=RuntimeError("falha") if fails else None)
+    monkeypatch.setattr(eventos, "record_audit", audit)
+    response = client.post("/api/eventos/3/iniciar", headers={"X-Request-ID": "request-123"})
+    assert response.status_code == (500 if fails else 200)
+    service.abrir_evento_existente.assert_called_once_with(3, commit=False)
+    assert audit.call_args.kwargs["user_id"] == 7
+    assert audit.call_args.kwargs["request_id"] == "request-123"
+    assert db.conn.commit.call_count == (0 if fails else 1)
+    assert db.conn.rollback.call_count == int(fails)
+
+
+def test_iniciar_evento_rejeita_data_e_conflito(api, monkeypatch):
+    db, client = api
+    service = MagicMock()
+    service.buscar_evento.return_value = Evento(id=3, nome="Gira", data_evento=date.today() + timedelta(days=1), tipo="Atendimento", status="Agendado")
+    monkeypatch.setattr(eventos, "EventoService", lambda db: service)
+    assert client.post("/api/eventos/3/iniciar").status_code == 400
+    service.abrir_evento_existente.assert_not_called()
+    service.buscar_evento.return_value.data_evento = date.today()
+    service.abrir_evento_existente.return_value = False
+    assert client.post("/api/eventos/3/iniciar").status_code == 409
+    db.conn.commit.assert_not_called()
+
+
+def test_iniciar_evento_conflito_concorrente(api, monkeypatch):
+    from psycopg2.errors import UniqueViolation
+    db, client = api
+    service = MagicMock()
+    service.buscar_evento.return_value = Evento(id=3, nome="Gira", data_evento=date.today(), tipo="Atendimento", status="Agendado")
+    service.abrir_evento_existente.side_effect = UniqueViolation()
+    monkeypatch.setattr(eventos, "EventoService", lambda db: service)
+    assert client.post("/api/eventos/3/iniciar").status_code == 409
+    db.conn.rollback.assert_called_once()
+
+
+def test_fechar_evento_exige_confirmacao_para_caixa_aberto(api, monkeypatch):
+    db, client = api
+    service = MagicMock()
+    service.buscar_evento.return_value = Evento(id=3, nome="Gira", data_evento=date.today(), tipo="Atendimento", status="Aberto")
+    service.fechar_evento.return_value = True
+    db.execute_query.return_value = (["count"], (2,))
+    monkeypatch.setattr(eventos, "EventoService", lambda db: service)
+    audit = MagicMock()
+    monkeypatch.setattr(eventos, "record_audit", audit)
+    response = client.post("/api/eventos/3/fechar")
+    assert response.status_code == 409
+    assert response.json()["detail"]["movimentos_abertos"] == 2
+    service.fechar_evento.assert_not_called()
+    audit.assert_not_called()
+    response = client.post("/api/eventos/3/fechar?confirmar_caixa_aberto=true")
+    assert response.status_code == 200
+    service.fechar_evento.assert_called_once_with(3, commit=False)
+    assert audit.call_args.kwargs["detalhes"]["movimentos_abertos"] == 2
+    db.conn.commit.assert_called_once()
+
+
+def test_falha_auditoria_encerramento_desfaz_transicao(api, monkeypatch):
+    db, client = api
+    service = MagicMock()
+    service.buscar_evento.return_value = Evento(id=3, nome="Gira", data_evento=date.today(), tipo="Atendimento", status="Aberto")
+    service.fechar_evento.return_value = True
+    db.execute_query.return_value = (["count"], (0,))
+    monkeypatch.setattr(eventos, "EventoService", lambda db: service)
+    monkeypatch.setattr(eventos, "record_audit", MagicMock(side_effect=RuntimeError("falha")))
+    assert client.post("/api/eventos/3/fechar").status_code == 500
+    db.conn.commit.assert_not_called()
+    db.conn.rollback.assert_called_once()
 
 
 @pytest.mark.parametrize("fails", [False, True])
@@ -207,6 +283,7 @@ def test_vendas_e_caixas_exigem_token(path):
 
 def test_abertura_automatica_venda_e_auditoria_fazem_rollback(api, monkeypatch):
     db, client = api
+    db.execute_query.return_value = (["status"], ("Aberto",))
     cash = MagicMock()
     cash.buscar_movimento_ativo.return_value = None
     cash.abrir_movimento.return_value = 22

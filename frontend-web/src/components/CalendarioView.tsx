@@ -87,7 +87,10 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
   };
 
   const iniciar = async (evento: Evento) => {
-    if (activeEvento && activeEvento.id !== evento.id && !window.confirm(`Iniciar ${aliasEvento} fechará "${activeEvento.nome}". Continuar?`)) return;
+    if (activeEvento && activeEvento.id !== evento.id) {
+      setError(`Encerre "${activeEvento.nome}" antes de iniciar outro ${aliasEvento}.`);
+      return;
+    }
     setBusy(true);
     try {
       await apiClient.post(`/eventos/${evento.id}/iniciar`);

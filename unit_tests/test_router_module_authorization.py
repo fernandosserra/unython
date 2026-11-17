@@ -20,6 +20,7 @@ def client(monkeypatch):
     monkeypatch.setattr(CaixaService, "buscar_todos_caixas", lambda self: [])
     monkeypatch.setattr(CategoriaService, "buscar_todas_categorias", lambda self: [])
     monkeypatch.setattr(EventoService, "buscar_evento_aberto", lambda self: None)
+    monkeypatch.setattr(EventoService, "buscar_evento", lambda self, id_evento, **kwargs: None)
     monkeypatch.setattr(RelatorioService, "calcular_saldo_fluxo_caixa", lambda self: 0)
     app.dependency_overrides[get_db] = lambda: MagicMock()
     test_client = TestClient(app)
@@ -58,6 +59,8 @@ def use_user(permissoes, role="Operador"):
         ("post", "/api/eventos/novo", ["caixa"], 403),
         ("post", "/api/eventos/novo", ["atendimentos"], 422),
         ("post", "/api/eventos/abrir", ["atendimentos"], 403),
+        ("post", "/api/eventos/3/iniciar", ["caixa"], 404),
+        ("post", "/api/eventos/3/iniciar", ["doacoes"], 403),
     ],
 )
 def test_module_permissions_on_routes(client, method, path, permissoes, expected):

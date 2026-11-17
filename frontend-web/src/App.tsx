@@ -87,6 +87,34 @@ export function App() {
   }, [refreshActiveSession]);
 
   useEffect(() => {
+    if (!isAuthenticated || configStatus !== 'ready') return;
+    const refresh = () => { void refreshActiveSession(); };
+    window.addEventListener('focus', refresh);
+    const timer = window.setInterval(refresh, 60_000);
+    return () => { window.removeEventListener('focus', refresh); window.clearInterval(timer); };
+  }, [isAuthenticated, configStatus, refreshActiveSession]);
+
+  const openScheduledEvent = async (id: number) => {
+    await apiClient.post(`/eventos/${id}/iniciar`);
+    await refreshActiveSession();
+  };
+
+  const closeActiveEvent = async (): Promise<boolean> => {
+    if (!activeEvento || !window.confirm(`Deseja encerrar "${activeEvento.nome}"?`)) return false;
+    try {
+      await apiClient.post(`/eventos/${activeEvento.id}/fechar`);
+    } catch (error) {
+      if (!axios.isAxiosError(error) || error.response?.status !== 409 ||
+          error.response.data?.detail?.code !== 'caixa_aberto') throw error;
+      const count = error.response.data.detail.movimentos_abertos;
+      if (!window.confirm(`Há ${count} movimento(s) de caixa aberto(s) vinculado(s) a este evento. Encerrar mesmo assim?`)) return false;
+      await apiClient.post(`/eventos/${activeEvento.id}/fechar`, null, { params: { confirmar_caixa_aberto: true } });
+    }
+    await refreshActiveSession();
+    return true;
+  };
+
+  useEffect(() => {
     if (!isAuthenticated || !authReady || user?.require_password_change) {
       setConfigStatus('loading');
       return;
@@ -194,6 +222,8 @@ export function App() {
         setCurrentTab={setCurrentTab}
         activeEvento={activeEvento}
         activeMovimento={activeMovimento}
+        onOpenEvento={openScheduledEvent}
+        onCloseEvento={closeActiveEvent}
         onOpenMobileModal={() => setIsMobileModalOpen(true)}
       />
       <ConnectivityBanner />
@@ -221,6 +251,7 @@ export function App() {
             activeEvento={activeEvento}
             activeMovimento={activeMovimento}
             onRefreshState={refreshActiveSession}
+            onCloseEvento={closeActiveEvent}
           />
         )}
 
@@ -230,7 +261,7 @@ export function App() {
         {effectiveTab === 'estoque' && (
           <AdminView activeEvento={activeEvento} onRefreshState={refreshActiveSession} initialTab="estoque" />
         )}
-        {effectiveTab === 'doacoes' && <DoacoesView />}
+        {effectiveTab === 'doacoes' && <DoacoesView activeEvento={activeEvento} />}
       </main>
 
       {/* Rodapé – Branding & Licença */}

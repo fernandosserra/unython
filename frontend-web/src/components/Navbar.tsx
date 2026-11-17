@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import axios from 'axios';
 import {
   ShoppingBag, Users, Wallet, Settings, LogOut, HeartHandshake,
   Smartphone, KeyRound, MoreHorizontal, Package,
@@ -7,22 +8,55 @@ import { useAuthStore } from '../store/useAuthStore';
 import { useOrgStore } from '../store/useOrgStore';
 import type { Evento, MovimentoCaixa } from '../types';
 import { ChangePasswordModal } from './ChangePasswordModal';
-import { availableTabs, type AppTab } from '../permissions';
+import { availableTabs, hasPermission, type AppTab } from '../permissions';
+import { apiClient } from '../api/client';
 
 interface NavbarProps {
   currentTab: AppTab | null;
   setCurrentTab: (tab: AppTab) => void;
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
+  onOpenEvento: (id: number) => Promise<void>;
+  onCloseEvento: () => Promise<boolean>;
   onOpenMobileModal: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
-  currentTab, setCurrentTab, activeEvento, activeMovimento, onOpenMobileModal,
+  currentTab, setCurrentTab, activeEvento, activeMovimento, onOpenEvento, onCloseEvento, onOpenMobileModal,
 }) => {
   const { user, logout } = useAuthStore();
   const config = useOrgStore((state) => state.config);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [eventosHoje, setEventosHoje] = useState<Evento[]>([]);
+  const [selectedEvento, setSelectedEvento] = useState('');
+  const [eventError, setEventError] = useState('');
+  const [eventBusy, setEventBusy] = useState(false);
+  const canManageEvento = hasPermission(user, 'eventos') || hasPermission(user, 'caixa') ||
+    (config.habilitar_atendimentos !== false && hasPermission(user, 'atendimentos'));
+
+  const loadEventosHoje = async () => {
+    try {
+      const data = await apiClient.get('/eventos/data-operacional');
+      const hoje: string = data.data.data_operacional;
+      const response = await apiClient.get('/eventos/', { params: { data_inicio: hoje, data_fim: hoje } });
+      const agendados = (response.data as Evento[]).filter(evento => evento.status === 'Agendado');
+      setEventosHoje(agendados);
+      setSelectedEvento(current => agendados.some(evento => String(evento.id) === current) ? current : String(agendados[0]?.id ?? ''));
+      setEventError('');
+    } catch {
+      setEventosHoje([]);
+      setEventError('Não foi possível carregar os eventos do dia.');
+    }
+  };
+  const runEventAction = async (action: () => Promise<unknown>) => {
+    setEventBusy(true); setEventError('');
+    try {
+      await action();
+    } catch (error) {
+      const detail = axios.isAxiosError(error) ? error.response?.data?.detail : null;
+      setEventError(typeof detail === 'string' ? detail : 'Não foi possível atualizar o evento.');
+    } finally { setEventBusy(false); }
+  };
   const navItems = [
     { id: 'pdv' as const, label: 'PDV / Vendas', mobile: 'PDV', icon: ShoppingBag },
     { id: 'agendamentos' as const, label: 'Atendimentos', mobile: 'Atend.', icon: Users },
@@ -57,7 +91,9 @@ export const Navbar: React.FC<NavbarProps> = ({
             })}
           </nav>
 
-          <details className="relative shrink-0">
+          <details className="relative shrink-0" onToggle={(e) => {
+            if (e.currentTarget.open && canManageEvento && !activeEvento) void loadEventosHoje();
+          }}>
             <summary aria-label="Status e ações da conta" className="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded-xl border border-slate-200 px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 [&::-webkit-details-marker]:hidden">
               <span className={`h-2 w-2 rounded-full ${activeEvento && activeMovimento ? 'bg-emerald-500' : 'bg-amber-400'}`} />
               <span className="hidden sm:inline">Status e conta</span><MoreHorizontal className="h-4 w-4" />
@@ -69,6 +105,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <p className="break-words">{config.alias_evento}: {activeEvento?.nome || 'Nenhum ativo'}</p>
                 <p>{activeMovimento ? 'Caixa aberto' : 'Caixa fechado'}</p>
               </div>
+              {canManageEvento && <div className="mb-2 space-y-2">
+                {activeEvento ? (
+                  <button type="button" disabled={eventBusy} onClick={() => void runEventAction(onCloseEvento)} className="min-h-10 w-full rounded-lg bg-rose-50 px-2 text-left text-xs font-bold text-rose-700 disabled:opacity-50">
+                    Encerrar {config.alias_evento}
+                  </button>
+                ) : (
+                  <>
+                    <label className="block text-xs font-bold">Abrir {config.alias_evento} do dia
+                      <select aria-label={`${config.alias_evento} do dia`} value={selectedEvento} onChange={e => setSelectedEvento(e.target.value)} className="mt-1 min-h-10 w-full rounded-lg border border-slate-200 px-2">
+                        <option value="">Nenhum selecionado</option>
+                        {eventosHoje.map(evento => <option key={evento.id} value={evento.id}>{evento.nome}</option>)}
+                      </select>
+                    </label>
+                    <button type="button" disabled={eventBusy || !selectedEvento} onClick={() => void runEventAction(() => onOpenEvento(Number(selectedEvento)))} className="min-h-10 w-full rounded-lg bg-emerald-700 px-2 text-xs font-bold text-white disabled:opacity-50">Abrir {config.alias_evento}</button>
+                    {!eventosHoje.length && !eventError && <p className="text-xs text-slate-500">Nenhum evento agendado para a data operacional.</p>}
+                  </>
+                )}
+                {eventError && <p role="alert" className="text-xs text-rose-700">{eventError}</p>}
+              </div>}
               <button type="button" onClick={onOpenMobileModal} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-slate-100"><Smartphone className="h-4 w-4" />Conectar celular</button>
               <button type="button" onClick={() => setIsPasswordModalOpen(true)} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left hover:bg-slate-100"><KeyRound className="h-4 w-4" />Alterar senha</button>
               <button type="button" onClick={logout} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-2 text-left text-rose-700 hover:bg-rose-50"><LogOut className="h-4 w-4" />Sair do sistema</button>
