@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from typing import Optional
 
 from src.utils.dependencies import DBDependency, require_role
+from src.utils.audit import record_audit
 from src.modules.estoque import EstoqueService
 from src.utils.models import Usuario
 
@@ -14,7 +15,7 @@ class MovimentoEstoqueRequest(BaseModel):
     item_id: int = Field(..., alias="itemId", gt=0)
     quantidade: int = Field(..., gt=0)
     origem_recurso: Optional[str] = None
-    usuario_id: int = Field(..., alias="usuarioId", gt=0)
+    usuario_id: Optional[int] = Field(None, alias="usuarioId", gt=0)
     evento_id: int = Field(..., alias="eventoId", gt=0)
 
     class Config:
@@ -32,7 +33,7 @@ def registrar_entrada(
         id_item=mov.item_id,
         quantidade=mov.quantidade,
         origem_recurso=mov.origem_recurso or "Ajuste",
-        id_usuario=mov.usuario_id,
+        id_usuario=current_user.id,
         id_evento=mov.evento_id,
     )
     if not mid:
@@ -44,18 +45,30 @@ def registrar_entrada(
 def registrar_saida(
     mov: MovimentoEstoqueRequest,
     db: DBDependency,
+    request: Request,
     current_user: Usuario = Depends(ADMIN_ONLY),
 ):
     service = EstoqueService(db)
-    mid = service.saida_item(
-        id_item=mov.item_id,
-        quantidade=mov.quantidade,
-        id_usuario=mov.usuario_id,
-        id_evento=mov.evento_id,
-        origem_recurso=mov.origem_recurso or "Consumo Interno",
-    )
-    if not mid:
-        raise HTTPException(status_code=400, detail="Falha ao registrar saída.")
+    try:
+        mid = service.saida_item(
+            id_item=mov.item_id,
+            quantidade=mov.quantidade,
+            id_usuario=current_user.id,
+            id_evento=mov.evento_id,
+            origem_recurso=mov.origem_recurso or "Consumo Interno",
+            commit=False,
+        )
+        if not mid:
+            raise HTTPException(status_code=400, detail="Falha ao registrar saída.")
+        record_audit(db, user_id=current_user.id, acao="saida_manual_estoque",
+                     entidade="estoque", entidade_id=mid,
+                     detalhes={"item_id": mov.item_id, "quantidade": mov.quantidade,
+                               "evento_id": mov.evento_id, "origem_recurso": mov.origem_recurso or "Consumo Interno"},
+                     request_id=request.state.request_id)
+        db.conn.commit()
+    except Exception:
+        db.conn.rollback()
+        raise
     return {"id": mid}
 
 

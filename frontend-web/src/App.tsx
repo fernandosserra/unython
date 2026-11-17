@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import { useAuthStore } from './store/useAuthStore';
 import { LoginView } from './components/LoginView';
 import { Navbar } from './components/Navbar';
@@ -9,6 +10,7 @@ import { AdminView } from './components/AdminView';
 import { DoacoesView } from './components/DoacoesView';
 import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ConnectMobileModal } from './components/ConnectMobileModal';
+import { ConnectivityBanner } from './components/ConnectivityBanner';
 import { apiClient } from './api/client';
 import type { Evento, MovimentoCaixa } from './types';
 
@@ -29,31 +31,33 @@ export function App() {
       try {
         const evResp = await apiClient.get('/eventos/aberto');
         setActiveEvento(evResp.data || null);
-      } catch {
-        setActiveEvento(null);
+      } catch (err) {
+        if (axios.isAxiosError(err) && err.response?.status === 404) {
+          setActiveEvento(null);
+        } else {
+          throw err;
+        }
       }
 
       // 2. Busca caixas e vê se algum está com movimento ativo
-      try {
-        const caixasResp = await apiClient.get('/caixas/');
-        const caixasList = caixasResp.data || [];
-        let foundMov: MovimentoCaixa | null = null;
+      const caixasResp = await apiClient.get('/caixas/');
+      const caixasList = caixasResp.data || [];
+      let foundMov: MovimentoCaixa | null = null;
 
-        for (const c of caixasList) {
-          try {
-            const movResp = await apiClient.get(`/caixas/${c.id}/movimento-ativo`);
-            if (movResp.data?.id) {
-              foundMov = movResp.data;
-              break;
-            }
-          } catch {
-            // Nenhum ativo para este caixa
+      for (const c of caixasList) {
+        try {
+          const movResp = await apiClient.get(`/caixas/${c.id}/movimento-ativo`);
+          if (movResp.data?.id) {
+            foundMov = movResp.data;
+            break;
+          }
+        } catch (err) {
+          if (!axios.isAxiosError(err) || err.response?.status !== 404) {
+            throw err;
           }
         }
-        setActiveMovimento(foundMov);
-      } catch {
-        setActiveMovimento(null);
       }
+      setActiveMovimento(foundMov);
 
       // 3. Busca nome da organização
       try {
@@ -91,15 +95,25 @@ export function App() {
   }, [logout]);
 
   if (!isAuthenticated) {
-    return <LoginView />;
+    return (
+      <>
+        <ConnectivityBanner />
+        <LoginView />
+      </>
+    );
   }
 
   if (user?.require_password_change) {
-    return <ChangePasswordModal isOpen required onClose={logout} />;
+    return (
+      <>
+        <ConnectivityBanner />
+        <ChangePasswordModal isOpen required onClose={logout} />
+      </>
+    );
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-100 font-sans text-slate-900 pb-16 lg:pb-0">
+    <div className="h-dvh min-h-0 flex flex-col overflow-hidden bg-slate-100 font-sans text-slate-900 pb-[calc(4.25rem_+_env(safe-area-inset-bottom))] lg:pb-0">
       <Navbar
         currentTab={currentTab}
         setCurrentTab={setCurrentTab}
@@ -108,8 +122,9 @@ export function App() {
         onOpenMobileModal={() => setIsMobileModalOpen(true)}
         orgNomeOrganizacao={orgConfig.nome_organizacao}
       />
+      <ConnectivityBanner />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="min-h-0 min-w-0 flex-1 flex flex-col overflow-x-hidden">
         {currentTab === 'pdv' && (
           <PDVView
             activeEvento={activeEvento}

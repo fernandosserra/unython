@@ -1,22 +1,24 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Query
+from fastapi import APIRouter, Depends, status, HTTPException, Query, Request
 from typing import List, Optional
 from decimal import Decimal
 
-from src.utils.dependencies import DBDependency
+from src.utils.audit import record_audit
+from src.utils.dependencies import DBDependency, get_current_user
 from src.utils.schemas import VendaCreate, VendaRecenteResponse, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
 from src.modules.estoque import EstoqueService
 from src.modules.usuario import UsuarioService
-from src.utils.models import Venda, ItemVenda, Caixa
+from src.utils.models import Venda, ItemVenda, Caixa, Usuario
 
 router = APIRouter(
     prefix="/vendas",
-    tags=["Vendas"]
+    tags=["Vendas"],
+    dependencies=[Depends(get_current_user)],
 )
 
 
-def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_evento: int, valor_abertura: Decimal = Decimal("0.00")) -> int:
+def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_evento: int, request_id: str, valor_abertura: Decimal = Decimal("0.00")) -> int:
     """Garante um movimento de caixa aberto para o evento e retorna o id_movimento."""
     caixa_service = CaixaService(db)
     if caixa_id:
@@ -24,33 +26,31 @@ def _obter_movimento_caixa(db, responsavel_id: int, caixa_id: Optional[int], id_
     else:
         caixa = caixa_service.buscar_caixa_por_nome("Caixa API")
         cid = caixa.id if caixa else caixa_service.registrar_caixa(
-            Caixa(nome="Caixa API", descricao="Caixa padrão para API")
+            Caixa(nome="Caixa API", descricao="Caixa padrão para API"), commit=False
         )
+    db.execute_query("SELECT id FROM caixas WHERE id = %s FOR UPDATE", (cid,), fetch_one=True)
     mov = caixa_service.buscar_movimento_ativo(cid)
     if mov:
         return mov.id
-    return caixa_service.abrir_movimento(cid, responsavel_id, valor_abertura, id_evento)
+    mid = caixa_service.abrir_movimento(cid, responsavel_id, valor_abertura, id_evento, commit=False)
+    if not mid:
+        raise HTTPException(status_code=400, detail="Não foi possível abrir movimento de caixa.")
+    record_audit(db, user_id=responsavel_id, acao="abrir_caixa",
+                 entidade="movimento_caixa", entidade_id=mid,
+                 detalhes={"caixa_id": cid, "evento_id": id_evento,
+                           "valor_abertura": str(valor_abertura), "origem": "venda"},
+                 request_id=request_id)
+    return mid
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
+def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency, request: Request, current_user: Usuario = Depends(get_current_user)):
     estoque_service = EstoqueService(db)
     caixa_service = CaixaService(db)
     venda_service = VendaService(db, estoque_service, caixa_service)
 
     if not venda_data.id_evento:
         raise HTTPException(status_code=400, detail="id_evento é obrigatório.")
-
-    movimento_id = venda_data.id_movimento_caixa
-    if not movimento_id:
-        movimento_id = _obter_movimento_caixa(db, venda_data.responsavel_id, venda_data.id_caixa, venda_data.id_evento)
-
-    cabecalho = Venda(
-        id_pessoa=venda_data.id_pessoa,
-        responsavel=str(venda_data.responsavel_id),
-        id_evento=venda_data.id_evento,
-        id_movimento_caixa=movimento_id,
-    )
 
     detalhes = [
         ItemVenda(
@@ -62,22 +62,37 @@ def registrar_venda_completa(venda_data: VendaCreate, db: DBDependency):
         for item in venda_data.itens
     ]
 
-    # Checagem de estoque explícita antes de prosseguir
-    for det in detalhes:
-        saldo = estoque_service.calcular_saldo_item(det.id_item)
-        if saldo < det.quantidade:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Estoque insuficiente para o item {det.id_item}. Necessário: {det.quantidade}, Saldo: {saldo}",
+    try:
+        movimento_id = venda_data.id_movimento_caixa
+        if not movimento_id:
+            movimento_id = _obter_movimento_caixa(
+                db, current_user.id, venda_data.id_caixa, venda_data.id_evento, request.state.request_id
             )
 
-    id_venda = venda_service.registrar_venda_completa(cabecalho, detalhes)
-
-    if id_venda is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="A transação falhou. Estoque insuficiente ou dados inválidos.",
+        cabecalho = Venda(
+            id_pessoa=venda_data.id_pessoa,
+            responsavel=str(current_user.id),
+            id_evento=venda_data.id_evento,
+            id_movimento_caixa=movimento_id,
         )
+
+        for det in detalhes:
+            saldo = estoque_service.calcular_saldo_item(det.id_item)
+            if saldo < det.quantidade:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Estoque insuficiente para o item {det.id_item}. Necessário: {det.quantidade}, Saldo: {saldo}",
+                )
+
+        id_venda = venda_service.registrar_venda_completa(cabecalho, detalhes)
+        if id_venda is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A transação falhou. Estoque insuficiente ou dados inválidos.",
+            )
+    except Exception:
+        db.conn.rollback()
+        raise
 
     return {"message": "Venda registrada com sucesso.", "id_venda": id_venda}
 

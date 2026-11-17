@@ -49,16 +49,16 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Header Superior (Desktop e Tablets) */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 gap-3">
+          <div className="flex items-center justify-between h-16 gap-2">
             {/* Logo e Identidade */}
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex min-w-0 items-center gap-2 sm:gap-3 shrink-0">
               <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-sm">
                 <HeartHandshake className="w-6 h-6" />
               </div>
-              <div className="flex flex-col">
-                <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-col">
+                <div className="flex min-w-0 items-center gap-2">
                   <span className="font-black text-xl tracking-tight text-slate-900 leading-none">Unython</span>
-                  <span className="text-[10px] uppercase font-extrabold tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full leading-none">
+                  <span className="hidden max-w-[9rem] truncate rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-extrabold uppercase leading-none tracking-wider text-emerald-800 sm:inline">
                     {orgNomeOrganizacao || 'ONG Impact'}
                   </span>
                 </div>
@@ -77,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <button
                     key={item.id}
                     onClick={() => setCurrentTab(item.id)}
-                    className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+                    className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                       isActive
                         ? 'bg-white text-emerald-800 shadow-sm border border-slate-200/60'
                         : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
@@ -92,11 +92,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Ações da Direita: Modo Celular + Status + Usuário */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* Botão Modo Celular (Mesma altura h-9, alinhamento horizontal) */}
+              {/* Botão Modo Celular */}
               <button
                 onClick={onOpenMobileModal}
                 title="Abrir no celular via QR Code / Rede Local"
-                className="h-9 px-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 text-xs font-bold border border-emerald-200/90 transition-all cursor-pointer active:scale-95 shadow-xs whitespace-nowrap shrink-0"
+                className="min-h-11 px-2.5 sm:px-3 inline-flex items-center gap-2 rounded-xl bg-emerald-50 hover:bg-emerald-100/90 text-emerald-800 text-xs font-bold border border-emerald-200/90 transition-all cursor-pointer active:scale-95 shadow-xs whitespace-nowrap shrink-0"
               >
                 <Smartphone className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span className="hidden sm:inline">Modo Celular</span>
@@ -130,14 +130,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onClick={() => setIsPasswordModalOpen(true)}
                   title="Alterar senha"
                   aria-label="Alterar senha"
-                  className="h-9 w-9 rounded-xl border border-slate-200/80 bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                  className="h-11 w-11 rounded-xl border border-slate-200/80 bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
                 >
                   <KeyRound className="w-4 h-4" />
                 </button>
                 <button
                   onClick={logout}
                   title="Sair do sistema"
-                  className="h-9 w-9 rounded-xl border border-slate-200/80 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                  className="h-11 w-11 rounded-xl border border-slate-200/80 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -156,14 +156,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               key={item.id}
               onClick={() => setCurrentTab(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition-all cursor-pointer ${
+              className={`min-h-11 flex-1 flex flex-col items-center justify-center gap-1 py-1 rounded-xl transition-all cursor-pointer ${
                 isActive ? 'text-emerald-700 font-black' : 'text-slate-500 hover:text-slate-800 font-medium'
               }`}
             >
               <div className={`p-1.5 rounded-xl transition-colors ${isActive ? 'bg-emerald-100/90 text-emerald-800' : ''}`}>
                 <Icon className="w-5 h-5" />
               </div>
-              <span className="text-[10px] leading-none tracking-tight">{item.id === 'admin' ? 'Cadastros' : item.label.split('/')[0].trim()}</span>
+              <span className="text-[10px] leading-none tracking-tight">
+                {{
+                  pdv: 'PDV',
+                  agendamentos: 'Atend.',
+                  caixa: 'Caixa',
+                  doacoes: 'Doações',
+                  admin: 'Cadastros',
+                }[item.id]}
+              </span>
             </button>
           );
         })}

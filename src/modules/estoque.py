@@ -30,7 +30,7 @@ class EstoqueService:
 
     # --- MÉTODO PRINCIPAL ---
     
-    def registrar_movimento(self, movimento: MovimentoEstoque) -> Optional[int]:
+    def registrar_movimento(self, movimento: MovimentoEstoque, *, commit: bool = True) -> Optional[int]:
         """Registra um movimento de estoque (Entrada ou Saída)."""
         query = """
         INSERT INTO estoque 
@@ -46,7 +46,7 @@ class EstoqueService:
             movimento.id_evento,
             movimento.data_movimento # Adicionado para garantir a persistência
         )
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
         
     # --- HELPERS (Funções de Alto Nível) ---
     
@@ -69,6 +69,8 @@ class EstoqueService:
         id_usuario: int,
         id_evento: int,
         origem_recurso: str = "Consumo Interno",
+        *,
+        commit: bool = True,
     ) -> Optional[int]:
         """Função simplificada para registrar uma saída de estoque (Ex: Consumo Interno)."""
         movimento = MovimentoEstoque(
@@ -79,7 +81,7 @@ class EstoqueService:
             id_usuario=id_usuario,
             id_evento=id_evento
         )
-        return self.registrar_movimento(movimento)
+        return self.registrar_movimento(movimento, commit=commit)
     
     def calcular_saldo_item(self, id_item: int) -> int:
         """

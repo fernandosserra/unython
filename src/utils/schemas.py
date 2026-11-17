@@ -64,7 +64,7 @@ class ItemVendaRequest(BaseModel):
 class VendaCreate(BaseModel):
     """Modelo completo para criar uma transacao de venda."""
     id_pessoa: Optional[int] = Field(None, alias="pessoaId")
-    responsavel_id: int = Field(..., alias="responsavelId")
+    responsavel_id: Optional[int] = Field(None, alias="responsavelId")
     id_evento: int = Field(..., alias="eventoId")
     id_caixa: Optional[int] = Field(None, alias="caixaId")
     id_movimento_caixa: Optional[int] = Field(None, alias="movimentoCaixaId")
@@ -151,7 +151,7 @@ class AgendamentoFilaItem(BaseModel):
 
 
 class CaixaAbrirRequest(BaseModel):
-    usuario_id: int = Field(..., gt=0)
+    usuario_id: Optional[int] = Field(None, gt=0)
     valor_abertura: Decimal = Field(default=Decimal("0.00"), ge=Decimal("0.00"))
     id_evento: Optional[int] = None
 

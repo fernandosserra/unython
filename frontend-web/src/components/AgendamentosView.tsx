@@ -147,14 +147,10 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
       if (filaResp.status === 'fulfilled') {
         setFila(filaResp.value.data || []);
-      } else {
-        setFila([]);
       }
 
       if (preResp.status === 'fulfilled') {
         setPreAgendados(preResp.value.data || []);
-      } else {
-        setPreAgendados([]);
       }
       if (filaResp.status === 'rejected' || preResp.status === 'rejected') {
         showFeedback('error', 'Não foi possível carregar todos os atendimentos do evento.');
@@ -344,7 +340,11 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       showFeedback('success', `Check-in realizado! Senha ${senha} emitida para ${nomePessoa}.`);
       await fetchFilaEPreAgendados();
     } catch (err: any) {
-      alert('Falha ao realizar check-in: ' + (err.response?.data?.detail || 'Tente novamente.'));
+      showFeedback(
+        'error',
+        err.response?.data?.detail ||
+          'Não foi possível confirmar o check-in. Verifique a fila antes de repetir a operação.'
+      );
     } finally {
       setUpdatingId(null);
     }
@@ -397,8 +397,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       showFeedback('success', 'Evento aberto para operação com sucesso!');
       await fetchEventos();
       setSelectedEventoId(idEvento);
-    } catch (err) {
-      alert('Erro ao iniciar o evento.');
+    } catch {
+      showFeedback('error', 'Não foi possível iniciar o evento. Verifique a conexão e o status antes de tentar novamente.');
     }
   };
 
@@ -550,7 +550,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-6xl mx-auto space-y-6">
         {/* Cabeçalho */}
         <div className="flex flex-col gap-4">
@@ -575,7 +575,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <button
               onClick={() => fetchFilaEPreAgendados()}
               disabled={isLoading}
-              className="h-10 px-3 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+              className="min-h-11 px-3 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
               title="Recarregar fila e agendamentos"
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -584,7 +584,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setIsPreAgendarModalOpen(true)}
-              className="h-10 px-3.5 bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-900 font-bold text-xs sm:text-sm rounded-xl border border-indigo-200 transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
+              className="min-h-11 px-3.5 bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-900 font-bold text-xs sm:text-sm rounded-xl border border-indigo-200 transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
               title={`Agendar ${orgConfig.termo_assistido.toLowerCase()} com antecedência`}
             >
               <Calendar className="w-4 h-4 text-indigo-600" />
@@ -593,7 +593,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setIsPresencialModalOpen(true)}
-              className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer"
+              className="min-h-11 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-sm transition-all inline-flex items-center gap-2 cursor-pointer"
               title="Para quem chegou na porta agora (sem agendamento prévio)"
             >
               <Plus className="w-4 h-4" />
@@ -605,6 +605,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         {/* Feedback visual */}
         {feedbackMsg && (
           <div
+            role="alert"
             className={`p-4 rounded-2xl border text-sm font-semibold flex items-center gap-3 animate-fade-in ${
               feedbackMsg.type === 'success'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
@@ -633,7 +634,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <select
               value={selectedEventoId || ''}
               onChange={(e) => setSelectedEventoId(Number(e.target.value))}
-              className="h-10 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+              className="min-h-11 max-w-full px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
             >
               {eventosDisponiveis.map((ev) => (
                 <option key={ev.id} value={ev.id}>
@@ -655,11 +656,11 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {eventoAtual && eventoAtual.status === 'Agendado' && (
               <button
                 onClick={() => handleIniciarEvento(eventoAtual.id)}
-                className="h-9 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                className="min-h-11 px-3.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
               >
                 <span>Iniciar / Abrir Evento Hoje</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -669,7 +670,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             {onNavigateToCaixa && (
               <button
                 onClick={onNavigateToCaixa}
-                className="h-9 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+                className="min-h-11 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
                 title="Abrir ou fechar turnos de caixa para a operação do evento"
               >
                 <span>Gestão de Caixa &rarr;</span>
@@ -678,7 +679,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setIsNovoEventoModalOpen(true)}
-              className="h-9 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
+              className="min-h-11 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
               title="Cadastrar uma nova data no calendário"
             >
               <CalendarPlus className="w-4 h-4 text-slate-500" />
@@ -735,7 +736,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
           <div className="flex items-center gap-1.5 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto shrink-0">
             <button
               onClick={() => setActiveTab('fila')}
-              className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'fila' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -745,7 +746,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setActiveTab('preagendados')}
-              className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'preagendados' ? 'bg-indigo-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -755,7 +756,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setActiveTab('ausentes')}
-              className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'ausentes' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -765,7 +766,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setActiveTab('atendidos')}
-              className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'atendidos' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -775,7 +776,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
             <button
               onClick={() => setActiveTab('config')}
-              className={`h-9 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
+              className={`min-h-11 px-3.5 inline-flex items-center gap-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap cursor-pointer ${
                 activeTab === 'config' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
               }`}
             >
@@ -792,7 +793,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder={`Buscar senha, nome do ${orgConfig.termo_assistido.toLowerCase()} ou telefone...`}
-                className="w-full h-10 pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium shadow-xs"
+                className="min-h-11 w-full pl-10 pr-4 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium shadow-xs"
               />
             </div>
           )}
@@ -895,11 +896,11 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Ausente')}
                             disabled={updatingId === item.id}
-                            className="h-8 px-2.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-500 hover:text-rose-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                            className="min-h-11 px-2.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-500 hover:text-rose-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                           >
                             <UserX className="w-3.5 h-3.5" />
                             <span>Ausente</span>
@@ -908,7 +909,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Chamado')}
                             disabled={updatingId === item.id || item.status === 'Chamado'}
-                            className="h-8 px-3 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                            className="min-h-11 px-3 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                           >
                             <Megaphone className="w-3.5 h-3.5 text-amber-600" />
                             <span>Chamar Senha</span>
@@ -917,7 +918,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Atendido')}
                             disabled={updatingId === item.id}
-                            className="h-8 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            className="min-h-11 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>Dar Baixa / Atendido</span>
@@ -1001,11 +1002,11 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
+                        <div className="mt-3 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Ausente')}
                             disabled={updatingId === item.id}
-                            className="h-8 px-2.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-500 hover:text-rose-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                            className="min-h-11 px-2.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50 text-slate-500 hover:text-rose-700 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                           >
                             <UserX className="w-3.5 h-3.5" />
                             <span>Ausente</span>
@@ -1014,7 +1015,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Chamado')}
                             disabled={updatingId === item.id || item.status === 'Chamado'}
-                            className="h-8 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
+                            className="min-h-11 px-3 rounded-xl border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1"
                           >
                             <Megaphone className="w-3.5 h-3.5 text-slate-600" />
                             <span>Chamar Senha</span>
@@ -1023,7 +1024,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           <button
                             onClick={() => handleMudarStatus(item.id, 'Atendido')}
                             disabled={updatingId === item.id}
-                            className="h-8 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                            className="min-h-11 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                           >
                             <Check className="w-3.5 h-3.5" />
                             <span>Dar Baixa / Atendido</span>
@@ -1054,7 +1055,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
               <button
                 onClick={() => setIsPreAgendarModalOpen(true)}
-                className="h-9 px-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5"
+                className="min-h-11 px-3.5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap inline-flex items-center gap-1.5"
               >
                 <Plus className="w-4 h-4" />
                 <span>+ Novo Pré-Agendamento</span>
@@ -1117,7 +1118,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] text-slate-400">
                         Agendado em: {new Date(item.data_hora).toLocaleDateString()}
                       </span>
@@ -1125,7 +1126,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       <button
                         onClick={() => handleCheckin(item.id, item.pessoa || orgConfig.termo_assistido)}
                         disabled={updatingId === item.id}
-                        className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                        className="min-h-11 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                       >
                         <UserCheck className="w-4 h-4" />
                         <span>Fazer Check-in & Emitir Senha</span>
@@ -1179,12 +1180,12 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       </div>
                     </div>
 
-                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                       <span className="text-xs text-slate-400">Ordem original: #{item.ordem_chegada}º</span>
                       <button
                         onClick={() => handleReativarAusente(item.id)}
                         disabled={updatingId === item.id}
-                        className="h-9 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
+                        className="min-h-11 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>Reativar / Voltar para a Fila</span>

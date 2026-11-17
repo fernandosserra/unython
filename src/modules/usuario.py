@@ -11,19 +11,21 @@ class UsuarioService:
 
     # --- METODOS DE SEGURANCA E REGISTRO ---
 
-    def editar_usuario_seguro(self, user_id: int, role: str, hashed_password: str, require_password_change: bool = False) -> bool:
+    def editar_usuario_seguro(self, user_id: int, role: str, hashed_password: str, require_password_change: bool = False, *, commit: bool = True) -> bool:
         """Atualiza role, senha e flag de troca obrigatoria para um usuario existente."""
         query = "UPDATE usuarios SET role = %s, hashed_password = %s, require_password_change = %s WHERE id = %s"
         params = (role, hashed_password, require_password_change, user_id)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
 
-    def registrar_usuario(self, usuario: Usuario, password: str, require_password_change: bool = False):
+    def registrar_usuario(self, usuario: Usuario, password: str, require_password_change: bool = False, *, commit: bool = True, update_existing: bool = True):
         """Registra um novo usuario com a senha criptografada (com UPSERT)."""
         usuario_existente = self.buscar_usuario_por_email(usuario.email)
         hashed_pwd = hash_password(password)
 
         if usuario_existente:
-            self.editar_usuario_seguro(usuario_existente.id, usuario.role, hashed_pwd, require_password_change)
+            if not update_existing:
+                raise ValueError("Usuário já existe.")
+            self.editar_usuario_seguro(usuario_existente.id, usuario.role, hashed_pwd, require_password_change, commit=commit)
             print(f"(Alerta: Usuario '{usuario.nome}' atualizado. Usando ID: {usuario_existente.id})")
             return usuario_existente.id
 
@@ -32,7 +34,7 @@ class UsuarioService:
         VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
         params = (usuario.nome, usuario.email, usuario.funcao, usuario.status, usuario.role, hashed_pwd, require_password_change)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
 
     # --- METODOS DE BUSCA ---
 
@@ -74,11 +76,11 @@ class UsuarioService:
         params = (usuario_id,)
         return self.db.execute_query(query, params, commit=True)
 
-    def atualizar_role_status(self, usuario_id: int, role: str, status: str = "Ativo", funcao: Optional[str] = None) -> bool:
+    def atualizar_role_status(self, usuario_id: int, role: str, status: str = "Ativo", funcao: Optional[str] = None, *, commit: bool = True) -> bool:
         """Atualiza role/status/funcao sem alterar senha."""
         query = "UPDATE usuarios SET role = %s, status = %s, funcao = %s WHERE id = %s"
         params = (role, status, funcao, usuario_id)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit, return_rowcount=True) == 1
     def alterar_senha(self, email: str, old_password: str, new_password: str) -> bool:
         """Altera a senha se a senha atual confere e limpa o flag de troca obrigatoria."""
         usuario = self.buscar_usuario_por_email(email)

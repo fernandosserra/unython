@@ -1,13 +1,14 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from typing import List, Optional
 from decimal import Decimal
 
-from src.utils.dependencies import DBDependency
+from src.utils.audit import record_audit
+from src.utils.dependencies import DBDependency, get_current_user
 from src.modules.caixas import CaixaService
-from src.utils.models import Caixa
+from src.utils.models import Caixa, Usuario
 from src.utils.schemas import CaixaAbrirRequest
 
-router = APIRouter(prefix="/caixas", tags=["Caixas"])
+router = APIRouter(prefix="/caixas", tags=["Caixas"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/", response_model=List[dict])
@@ -39,6 +40,8 @@ def movimento_ativo(caixa_id: int, db: DBDependency):
 def abrir_movimento(
     caixa_id: int,
     db: DBDependency,
+    request: Request,
+    current_user: Usuario = Depends(get_current_user),
     payload: Optional[CaixaAbrirRequest] = None,
     usuario_id: Optional[int] = None,
     valor_abertura: Optional[Decimal] = None,
@@ -46,12 +49,8 @@ def abrir_movimento(
 ):
     """Abre uma nova sessão de movimento de caixa, aceitando corpo JSON ou parâmetros de consulta."""
     service = CaixaService(db)
-    uid = payload.usuario_id if payload else usuario_id
     val = payload.valor_abertura if payload else (valor_abertura or Decimal("0.00"))
     ev_id = payload.id_evento if payload else id_evento
-
-    if uid is None:
-        raise HTTPException(status_code=400, detail="usuario_id é obrigatório.")
 
     if ev_id is None:
         from src.modules.evento import EventoService
@@ -61,16 +60,36 @@ def abrir_movimento(
             raise HTTPException(status_code=400, detail="Nenhum evento aberto. Abra um evento antes.")
         ev_id = ev.id
 
-    mid = service.abrir_movimento(caixa_id, uid, val, ev_id)
-    if not mid:
-        raise HTTPException(status_code=400, detail="Não foi possível abrir movimento (já existe aberto?).")
+    try:
+        db.execute_query("SELECT id FROM caixas WHERE id = %s FOR UPDATE", (caixa_id,), fetch_one=True)
+        if service.buscar_movimento_ativo(caixa_id):
+            raise HTTPException(status_code=400, detail="Já existe movimento aberto para este caixa.")
+        mid = service.abrir_movimento(caixa_id, current_user.id, val, ev_id, commit=False)
+        if not mid:
+            raise HTTPException(status_code=400, detail="Não foi possível abrir movimento.")
+        record_audit(db, user_id=current_user.id, acao="abrir_caixa",
+                     entidade="movimento_caixa", entidade_id=mid,
+                     detalhes={"caixa_id": caixa_id, "evento_id": ev_id, "valor_abertura": str(val)},
+                     request_id=request.state.request_id)
+        db.conn.commit()
+    except Exception:
+        db.conn.rollback()
+        raise
     return {"movimento_id": mid}
 
 
 @router.post("/{movimento_id}/fechar")
-def fechar_movimento(movimento_id: int, db: DBDependency):
+def fechar_movimento(movimento_id: int, db: DBDependency, request: Request, current_user: Usuario = Depends(get_current_user)):
     service = CaixaService(db)
-    ok = service.fechar_movimento(movimento_id)
-    if not ok:
-        raise HTTPException(status_code=400, detail="Não foi possível fechar movimento.")
+    try:
+        ok = service.fechar_movimento(movimento_id, commit=False)
+        if not ok:
+            raise HTTPException(status_code=400, detail="Não foi possível fechar movimento.")
+        record_audit(db, user_id=current_user.id, acao="fechar_caixa",
+                     entidade="movimento_caixa", entidade_id=movimento_id,
+                     detalhes={}, request_id=request.state.request_id)
+        db.conn.commit()
+    except Exception:
+        db.conn.rollback()
+        raise
     return {"status": "fechado"}

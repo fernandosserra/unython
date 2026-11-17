@@ -60,9 +60,10 @@ Para criar ou atualizar o schema do banco configurado em `config/secrets.toml` o
 alembic upgrade head
 ```
 
-Em bancos existentes, faça backup antes de atualizar. A revisão inicial usa DDL idempotente para preservar tabelas e dados existentes. Se o schema já corresponde exatamente ao baseline, também é possível registrar esse estado sem executar a revisão:
+Em bancos existentes, faça backup antes de atualizar. A revisão inicial usa DDL idempotente para preservar tabelas e dados existentes. Se o schema já corresponde exatamente ao baseline, registre apenas essa revisão e aplique as seguintes:
 ```bash
-alembic stamp head
+alembic stamp 20261117_01
+alembic upgrade head
 ```
 
 A revisão baseline pode ser revertida com `alembic downgrade base`, mas isso remove as tabelas e os dados; execute somente após backup e com um plano de restauração.
@@ -97,10 +98,13 @@ Acesse o frontend em: **`http://127.0.0.1:3000/`**
 
 ## 🔐 Autenticação e Primeiro Acesso
 
-* **Superusuário Padrão:** `admin@unython.local`
-* **Senha Inicial:** `change-me-now`
-* O sistema força a alteração de senha no primeiro login.
-* Na tela de login da SPA, há um botão de **Acesso Rápido Bootstrap** para facilitar o desenvolvimento.
+Em desenvolvimento, o bootstrap cria `admin@unython.local` com senha `change-me-now` quando a conta não existe. A troca de senha é exigida nas rotas autenticadas antes de prosseguir.
+
+Em produção, defina `APP_ENV=production`, `JWT_SECRET_KEY` com pelo menos 32 caracteres aleatórios e `CORS_ORIGINS` com origens HTTPS explícitas, separadas por vírgula. Exemplo para gerar um segredo: `python -c "import secrets; print(secrets.token_urlsafe(48))"`. Não registre ou compartilhe esse valor. Configure TLS no proxy de confiança e transmita o esquema HTTPS corretamente à aplicação.
+
+O bootstrap de produção é ignorado se `BOOTSTRAP_ADMIN_PASSWORD` não estiver definida; uma senha configurada deve ter pelo menos 12 caracteres e não pode ser a senha padrão. O startup também recusa o administrador padrão existente se ele ainda utilizar `change-me-now`. Antes do primeiro acesso, provisione um administrador seguro ou configure essa variável temporariamente. A API não utiliza cookies de autenticação: a SPA guarda o token em `localStorage`, que continua exposto caso haja execução de JavaScript malicioso na origem.
+
+As operações críticas registram auditoria transacional em `audit_logs`; cada entrada inclui o identificador da requisição. `/api/health` verifica o PostgreSQL, e os logs HTTP estruturados usam `X-Request-ID` sem registrar credenciais ou corpos das requisições. A reversão da migração de auditoria remove a tabela e seu histórico; preserve um backup antes de executá-la.
 
 ---
 
@@ -113,6 +117,8 @@ npm install
 npm run build
 ```
 O build compilado em `dist/` é instantaneamente reconhecido pelo FastAPI.
+
+A SPA é instalável como PWA: em produção, sirva-a por HTTPS (ou `localhost`) e use a opção **Instalar aplicativo** do navegador. O Service Worker precacheia apenas arquivos estáticos do build; requisições `/api` não são armazenadas em cache.
 
 ---
 

@@ -54,6 +54,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
     useCartStore();
 
   const [catalogGroups, setCatalogGroups] = useState<Record<string, Item[]>>({});
+  const [catalogError, setCatalogError] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -73,6 +74,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [saleSuccess, setSaleSuccess] = useState<boolean>(false);
   const [lastSaleId, setLastSaleId] = useState<number | null>(null);
+  const [saleError, setSaleError] = useState('');
 
   // Carrega Catálogo Agrupado
   const loadCatalog = async () => {
@@ -80,8 +82,10 @@ export const PDVView: React.FC<PDVViewProps> = ({
     try {
       const resp = await apiClient.get('/catalogo/grupos');
       setCatalogGroups(resp.data || {});
+      setCatalogError('');
     } catch (err) {
       console.error('Erro ao carregar catálogo', err);
+      setCatalogError('Não foi possível carregar o catálogo. Verifique a conexão e tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -150,6 +154,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
 
   const handleOpenPayment = () => {
     if (items.length === 0) return;
+    setSaleError('');
     setAmountReceived(totalPrice);
     setIsMobileCartOpen(false);
     setIsPaymentModalOpen(true);
@@ -160,6 +165,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
   };
 
   const handleFinalizeSale = async () => {
+    setSaleError('');
     if (!activeEvento) {
       alert('Atenção: É necessário abrir um Evento antes de registrar vendas.');
       return;
@@ -188,8 +194,9 @@ export const PDVView: React.FC<PDVViewProps> = ({
       setSaleSuccess(true);
       clearCart();
     } catch (err: any) {
-      const errorMsg = err.response?.data?.detail || 'Erro ao registrar venda. Verifique o estoque.';
-      alert(`Falha: ${errorMsg}`);
+      const errorMsg = err.response?.data?.detail
+        || 'Não foi possível confirmar a venda. Confira a conexão e o histórico antes de tentar novamente.';
+      setSaleError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -202,9 +209,9 @@ export const PDVView: React.FC<PDVViewProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row h-[calc(100vh-4rem)] overflow-hidden bg-slate-100 relative">
+    <div className="min-h-0 flex-1 flex flex-col lg:flex-row overflow-hidden bg-slate-100 relative">
       {/* Coluna da Esquerda: Catálogo e Produtos */}
-      <div className="flex-1 flex flex-col p-3 sm:p-6 overflow-hidden pb-24 lg:pb-6">
+      <div className="min-h-0 min-w-0 flex-1 flex flex-col p-3 sm:p-6 overflow-hidden pb-24 lg:pb-6">
         {/* Aviso se Caixa ou Evento não estiverem abertos */}
         {(!activeEvento || !activeMovimento) && (
           <div className="mb-3 p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-between gap-3 shadow-xs">
@@ -218,7 +225,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
             </div>
             <button
               onClick={onNavigateToCaixa}
-              className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
+              className="min-h-11 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer shrink-0"
             >
               Abrir
             </button>
@@ -232,7 +239,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               onClick={toggleRecentSales}
               aria-expanded={isRecentSalesOpen}
               aria-controls="pdv-recent-sales"
-              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-bold text-slate-800"
+              className="min-h-11 flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-bold text-slate-800"
             >
               <History className="h-4 w-4 shrink-0 text-emerald-600" />
               <span>Últimas vendas</span>
@@ -249,7 +256,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
                 onClick={() => void loadRecentSales()}
                 disabled={isLoadingRecentSales}
                 aria-label="Atualizar últimas vendas"
-                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+                className="min-h-11 min-w-11 rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
               >
                 <RefreshCw className={`h-4 w-4 ${isLoadingRecentSales ? 'animate-spin' : ''}`} />
               </button>
@@ -303,7 +310,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Buscar produto pelo nome..."
-              className="w-full pl-10 sm:pl-11 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+              className="min-h-11 w-full pl-10 sm:pl-11 pr-4 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder-slate-400 text-xs sm:text-sm focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
             />
           </div>
 
@@ -313,7 +320,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                className={`min-h-11 px-3 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                   selectedCategory === cat
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -326,10 +333,21 @@ export const PDVView: React.FC<PDVViewProps> = ({
         </div>
 
         {/* Grade de Produtos */}
-        <div className="flex-1 overflow-y-auto pr-1">
+        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
           {isLoading ? (
             <div className="h-full flex items-center justify-center text-slate-400 text-sm font-medium">
               Carregando produtos...
+            </div>
+          ) : catalogError ? (
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-rose-700">
+              <p role="alert">{catalogError}</p>
+              <button
+                type="button"
+                onClick={() => void loadCatalog()}
+                className="min-h-11 rounded-xl bg-emerald-600 px-4 font-bold text-white"
+              >
+                Tentar novamente
+              </button>
             </div>
           ) : filteredItems.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
@@ -344,7 +362,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
                   <button
                     key={item.id}
                     onClick={() => addItem(item, 1)}
-                    className="group relative flex flex-col justify-between p-3 sm:p-3.5 bg-white hover:bg-emerald-50/50 rounded-2xl border border-slate-200/80 hover:border-emerald-300 shadow-xs hover:shadow-md transition-all text-left cursor-pointer active:scale-98"
+                    className="group relative flex min-h-28 flex-col justify-between p-3 sm:p-3.5 bg-white hover:bg-emerald-50/50 rounded-2xl border border-slate-200/80 hover:border-emerald-300 shadow-xs hover:shadow-md transition-all text-left cursor-pointer active:scale-98"
                   >
                     {inCart && (
                       <span className="absolute -top-1.5 -right-1.5 w-5 h-5 sm:w-6 sm:h-6 bg-emerald-600 text-white text-[10px] sm:text-xs font-black rounded-full flex items-center justify-center shadow-xs">
@@ -424,7 +442,8 @@ export const PDVView: React.FC<PDVViewProps> = ({
                 <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => updateQuantity(cartItem.id_item, -1)}
-                    className="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                    aria-label={`Diminuir quantidade de ${cartItem.nome}`}
+                    className="h-11 w-11 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
                   >
                     <Minus className="w-3.5 h-3.5" />
                   </button>
@@ -433,13 +452,15 @@ export const PDVView: React.FC<PDVViewProps> = ({
                   </span>
                   <button
                     onClick={() => updateQuantity(cartItem.id_item, 1)}
-                    className="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
+                    aria-label={`Aumentar quantidade de ${cartItem.nome}`}
+                    className="h-11 w-11 rounded-lg bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 flex items-center justify-center cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => removeItem(cartItem.id_item)}
-                    className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer ml-1"
+                    aria-label={`Remover ${cartItem.nome} do carrinho`}
+                    className="h-11 w-11 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 flex items-center justify-center cursor-pointer ml-1"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -461,7 +482,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
           <button
             onClick={handleOpenPayment}
             disabled={items.length === 0}
-            className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 text-sm cursor-pointer disabled:cursor-not-allowed"
+            className="min-h-11 w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold rounded-xl shadow-lg shadow-emerald-600/20 hover:shadow-xl transition-all flex items-center justify-center gap-2 text-sm cursor-pointer disabled:cursor-not-allowed"
           >
             <span>Cobrar / Finalizar</span>
             <span className="font-mono bg-emerald-700/60 px-2 py-0.5 rounded text-xs">
@@ -473,10 +494,10 @@ export const PDVView: React.FC<PDVViewProps> = ({
 
       {/* Barra Flutuante de Carrinho para Celular (Mobile) */}
       {items.length > 0 && (
-        <div className="lg:hidden fixed bottom-16 sm:bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 shadow-2xl">
+        <div className="lg:hidden fixed bottom-[calc(4.25rem_+_env(safe-area-inset-bottom))] left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 z-30 shadow-2xl">
           <button
             onClick={() => setIsMobileCartOpen(true)}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg flex items-center justify-between transition-transform active:scale-98 cursor-pointer"
+            className="min-h-11 w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg flex items-center justify-between transition-transform active:scale-98 cursor-pointer"
           >
             <div className="flex items-center gap-2.5">
               <span className="w-6 h-6 rounded-full bg-emerald-800 text-white text-xs font-black flex items-center justify-center">
@@ -497,7 +518,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
       {/* Drawer / Modal de Carrinho no Celular */}
       {isMobileCartOpen && (
         <div className="lg:hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col justify-end">
-          <div className="bg-white rounded-t-3xl max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-slide-up">
+          <div className="bg-white rounded-t-3xl max-h-[85dvh] flex flex-col shadow-2xl overflow-hidden animate-slide-up">
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-emerald-600" />
@@ -505,7 +526,8 @@ export const PDVView: React.FC<PDVViewProps> = ({
               </div>
               <button
                 onClick={() => setIsMobileCartOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
+                aria-label="Fechar carrinho"
+                className="min-h-11 min-w-11 rounded-lg text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -526,7 +548,8 @@ export const PDVView: React.FC<PDVViewProps> = ({
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => updateQuantity(cartItem.id_item, -1)}
-                      className="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center"
+                      aria-label={`Diminuir quantidade de ${cartItem.nome}`}
+                      className="h-11 w-11 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center"
                     >
                       <Minus className="w-3.5 h-3.5" />
                     </button>
@@ -535,13 +558,15 @@ export const PDVView: React.FC<PDVViewProps> = ({
                     </span>
                     <button
                       onClick={() => updateQuantity(cartItem.id_item, 1)}
-                      className="w-7 h-7 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center"
+                      aria-label={`Aumentar quantidade de ${cartItem.nome}`}
+                      className="h-11 w-11 rounded-lg bg-white border border-slate-200 text-slate-700 flex items-center justify-center"
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => removeItem(cartItem.id_item)}
-                      className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center ml-1"
+                      aria-label={`Remover ${cartItem.nome} do carrinho`}
+                      className="h-11 w-11 rounded-lg text-slate-400 hover:text-rose-600 flex items-center justify-center ml-1"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -550,7 +575,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               ))}
             </div>
 
-            <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="p-4 pb-[calc(1rem_+_env(safe-area-inset-bottom))] bg-slate-50 border-t border-slate-200 space-y-3">
               <div className="flex justify-between items-baseline">
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total</span>
                 <span className="text-2xl font-black text-slate-900">
@@ -559,7 +584,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
               </div>
               <button
                 onClick={handleOpenPayment}
-                className="w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
+                className="min-h-11 w-full py-3.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm cursor-pointer"
               >
                 <span>Avançar para Pagamento</span>
                 <ArrowRight className="w-4 h-4" />
@@ -610,6 +635,12 @@ export const PDVView: React.FC<PDVViewProps> = ({
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+
+                {saleError && (
+                  <p role="alert" className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-medium text-rose-800">
+                    {saleError}
+                  </p>
+                )}
 
                 <div className="grid grid-cols-3 gap-2 my-5">
                   <button
@@ -673,7 +704,7 @@ export const PDVView: React.FC<PDVViewProps> = ({
                           key={val}
                           type="button"
                           onClick={() => handleQuickAddBill(val)}
-                          className="flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          className="min-h-11 flex-1 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         >
                           +{val}
                         </button>

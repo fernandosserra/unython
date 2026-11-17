@@ -67,10 +67,11 @@ class VendaService:
             # 2. Detalhes + saída de estoque
             for item_venda in itens_detalhe:
                 item_venda.id_venda = id_venda
-                self.registrar_item_venda(item_venda)
+                if not self.registrar_item_venda(item_venda):
+                    raise ValueError("Falha ao criar item de venda.")
 
                 # Baixa de estoque
-                self.estoque_service.registrar_movimento(
+                movimento_id = self.estoque_service.registrar_movimento(
                     MovimentoEstoque(
                         id_item=item_venda.id_item,
                         quantidade=item_venda.quantidade,
@@ -78,8 +79,11 @@ class VendaService:
                         origem_recurso="Venda",
                         id_usuario=int(venda_cabecalho.responsavel) if str(venda_cabecalho.responsavel).isdigit() else None,
                         id_evento=venda_cabecalho.id_evento,
-                    )
+                    ),
+                    commit=False,
                 )
+                if not movimento_id:
+                    raise ValueError("Falha ao registrar baixa de estoque.")
 
             # 3. Commit geral
             self.db.conn.commit()

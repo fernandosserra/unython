@@ -34,16 +34,23 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  const fetchCaixas = async () => {
+  const fetchCaixas = async (): Promise<boolean> => {
     try {
       const resp = await apiClient.get('/caixas/');
       const list: Caixa[] = resp.data || [];
       setCaixas(list);
+      setMessage(null);
       if (list.length > 0 && !selectedCaixaId) {
         setSelectedCaixaId(list[0].id);
       }
+      return true;
     } catch (err) {
       console.error('Erro ao carregar caixas:', err);
+      setMessage({
+        type: 'error',
+        text: 'Não foi possível carregar os pontos de caixa. Verifique a conexão e tente novamente.',
+      });
+      return false;
     }
   };
 
@@ -144,8 +151,13 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
       });
       setNomeNovoCaixa('');
       setDescricaoNovoCaixa('');
-      await fetchCaixas();
-      setMessage({ type: 'success', text: 'Novo caixa cadastrado!' });
+      const refreshed = await fetchCaixas();
+      setMessage({
+        type: refreshed ? 'success' : 'error',
+        text: refreshed
+          ? 'Novo caixa cadastrado!'
+          : 'Ponto de caixa cadastrado, mas não foi possível atualizar a lista.',
+      });
     } catch (err: any) {
       setMessage({ type: 'error', text: err.response?.data?.detail || 'Erro ao criar caixa.' });
     } finally {
@@ -154,7 +166,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   };
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
+    <div className="min-h-0 flex-1 overflow-y-auto bg-slate-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2.5">
@@ -223,7 +235,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                       value={nomeNovoEvento}
                       onChange={(e) => setNomeNovoEvento(e.target.value)}
                       placeholder="Ex: Bazar Beneficente de Sábado"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
                     />
                   </div>
                   <div>
@@ -235,7 +247,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                       value={tipoNovoEvento}
                       onChange={(e) => setTipoNovoEvento(e.target.value)}
                       placeholder="Ex: Encontro, atendimento, evento beneficente"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
                     />
                   </div>
                   <button
@@ -317,7 +329,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                     <select
                       value={selectedCaixaId || ''}
                       onChange={(e) => setSelectedCaixaId(Number(e.target.value))}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+                      className="min-h-11 w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
                     >
                       {caixas.map((c) => (
                         <option key={c.id} value={c.id}>

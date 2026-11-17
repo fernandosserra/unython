@@ -1,7 +1,7 @@
 # src/utils/dependencies.py
 
 from typing import Annotated, Generator, Set
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from src.utils.database_manager import DatabaseManager
 from src.modules.usuario import UsuarioService
@@ -30,7 +30,25 @@ DBDependency = Annotated[DatabaseManager, Depends(get_db)]
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
-def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DBDependency) -> Usuario:
+# Rotas permitidas mesmo com troca de senha obrigatória pendente
+PASSWORD_CHANGE_ALLOWED_PATHS = {
+    "/change-password", "/logout", "/me", "/perfil", "/auth/logout", "/auth/me",
+    "/usuarios/me", "/usuarios/perfil",
+}
+
+
+def _path_allows_pending_password_change(path: str) -> bool:
+    path = path.rstrip("/") or "/"
+    if path.startswith("/api/"):
+        path = path[4:]
+    return path in PASSWORD_CHANGE_ALLOWED_PATHS
+
+
+def get_current_user(
+    request: Request,
+    token: Annotated[str, Depends(oauth2_scheme)],
+    db: DBDependency,
+) -> Usuario:
     """
     Função de dependência que valida e decodifica o token JWT
     e retorna o objeto Usuario autenticado.
@@ -61,6 +79,13 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DBDepend
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Usuário não encontrado ou inativo.",
             headers={"WWW-Authenticate": "Bearer"},
+        )
+    if getattr(user, "require_password_change", False) and not _path_allows_pending_password_change(
+        request.url.path
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Troca de senha obrigatória antes de continuar.",
         )
     return user
 

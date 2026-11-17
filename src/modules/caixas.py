@@ -20,7 +20,7 @@ class CaixaService:
     # 1. Gestão de Caixas físicos (CRUD)
     # -----------------------------------------------------------
 
-    def registrar_caixa(self, caixa: Caixa) -> Optional[int]:
+    def registrar_caixa(self, caixa: Caixa, *, commit: bool = True) -> Optional[int]:
         """Registra um novo Caixa físico (UPSERT lógico pelo nome)."""
         caixa_existente = self.buscar_caixa_por_nome(caixa.nome)
         if caixa_existente:
@@ -29,7 +29,7 @@ class CaixaService:
 
         query = "INSERT INTO caixas (nome, descricao, status) VALUES (%s, %s, %s) RETURNING id"
         params = (caixa.nome, caixa.descricao, caixa.status)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
 
     def buscar_caixa_por_nome(self, nome: str) -> Optional[Caixa]:
         """Busca um Caixa físico pelo nome."""
@@ -51,7 +51,7 @@ class CaixaService:
     # 2. Gestão de Movimento de Caixa (Abertura/Fechamento)
     # -----------------------------------------------------------
 
-    def abrir_movimento(self, id_caixa: int, id_usuario_abertura: int, valor_abertura: Decimal, id_evento: Optional[int] = None) -> Optional[int]:
+    def abrir_movimento(self, id_caixa: int, id_usuario_abertura: int, valor_abertura: Decimal, id_evento: Optional[int] = None, *, commit: bool = True) -> Optional[int]:
         """
         Abre uma nova sessão de Movimento de Caixa.
         Só permite abertura se não houver outro movimento ABERTO para o mesmo Caixa.
@@ -69,16 +69,16 @@ class CaixaService:
         RETURNING id
         """
         params = (id_caixa, id_usuario_abertura, valor_abertura, id_evento)
-        return self.db.execute_query(query, params, commit=True)
+        return self.db.execute_query(query, params, commit=commit)
 
-    def fechar_movimento(self, id_movimento: int) -> bool:
+    def fechar_movimento(self, id_movimento: int, *, commit: bool = True) -> bool:
         """
         Fecha um Movimento de Caixa existente.
         Retorna True se a operação foi bem-sucedida (1 linha afetada).
         """
         query = "UPDATE movimentos_caixa SET status = 'Fechado', data_fechamento = NOW() WHERE id = %s AND status = 'Aberto'"
         params = (id_movimento,)
-        return self.db.execute_query(query, params, commit=True, return_rowcount=True) == 1
+        return self.db.execute_query(query, params, commit=commit, return_rowcount=True) == 1
 
     def buscar_movimento_ativo(self, id_caixa: int) -> Optional[MovimentoCaixa]:
         """Busca o movimento ATIVO para um Caixa específico."""

@@ -16,8 +16,24 @@ apiClient.interceptors.request.use((config) => {
 });
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('unython_api_reachable'));
+    }
+    return response;
+  },
   (error) => {
+    if (typeof window !== 'undefined') {
+      if (
+        (!error.response && error.request && error.code !== 'ERR_CANCELED') ||
+        error.response?.status >= 500
+      ) {
+        window.dispatchEvent(new Event('unython_api_unavailable'));
+      } else if (error.response) {
+        window.dispatchEvent(new Event('unython_api_reachable'));
+      }
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem('unython_auth_token');
       localStorage.removeItem('unython_user_data');
