@@ -193,6 +193,25 @@ class VendaResponse(BaseModel):
         populate_by_name = True
 
 
+class VendaItemHistorico(BaseModel):
+    id_item: int
+    nome: str
+    quantidade: int
+    valor_unitario: Decimal
+    subtotal: Decimal
+
+
+class VendaRecenteResponse(BaseModel):
+    id: int
+    id_pessoa: Optional[int] = None
+    responsavel: str
+    id_evento: int
+    data_venda: date
+    data_hora_venda: Optional[datetime] = None
+    itens: List[VendaItemHistorico] = Field(default_factory=list)
+    total: Decimal = Decimal("0.00")
+
+
 class InventarioResponse(BaseModel):
     id: int
     nome: str

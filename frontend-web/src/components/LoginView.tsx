@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/useAuthStore';
 export const LoginView: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const { login, isLoading, error, clearError } = useAuthStore();
+  const { login, isLoading, error, notice, clearError, clearNotice } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +33,17 @@ export const LoginView: React.FC = () => {
             <p className="text-sm font-medium text-emerald-700 mt-1">Plataforma de Impacto & Gestão para ONGs</p>
             <p className="text-xs text-slate-500 mt-0.5">Gestão de eventos, serviços e atendimentos</p>
           </div>
+
+          {notice && (
+            <div role="status" className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm">
+              <div className="flex items-start justify-between gap-3">
+                <span>{notice}</span>
+                <button type="button" onClick={clearNotice} aria-label="Dispensar aviso" className="font-bold">
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
 
           {error && (
             <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm flex items-start gap-3 animate-fade-in">

@@ -62,13 +62,20 @@ class EstoqueService:
         )
         return self.registrar_movimento(movimento)
 
-    def saida_item(self, id_item: int, quantidade: int, id_usuario: int, id_evento: int) -> Optional[int]:
+    def saida_item(
+        self,
+        id_item: int,
+        quantidade: int,
+        id_usuario: int,
+        id_evento: int,
+        origem_recurso: str = "Consumo Interno",
+    ) -> Optional[int]:
         """Função simplificada para registrar uma saída de estoque (Ex: Consumo Interno)."""
         movimento = MovimentoEstoque(
             id_item=id_item, 
             quantidade=quantidade, 
             tipo_movimento='Saida', 
-            origem_recurso='Consumo Interno', # Saídas que não são vendas
+            origem_recurso=origem_recurso,
             id_usuario=id_usuario,
             id_evento=id_evento
         )

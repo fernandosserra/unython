@@ -1,9 +1,9 @@
-﻿from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Query
 from typing import List, Optional
 from decimal import Decimal
 
 from src.utils.dependencies import DBDependency
-from src.utils.schemas import VendaCreate, VendaResponse
+from src.utils.schemas import VendaCreate, VendaRecenteResponse, VendaResponse
 from src.modules.venda import VendaService
 from src.modules.caixas import CaixaService
 from src.modules.estoque import EstoqueService
@@ -93,23 +93,20 @@ def listar_vendas(db: DBDependency):
     return vendas
 
 
-@router.get("/ultimas", response_model=List[VendaResponse], status_code=status.HTTP_200_OK)
-def listar_ultimas_vendas(db: DBDependency, limite: int = 10):
+@router.get("/ultimas", response_model=List[VendaRecenteResponse], status_code=status.HTTP_200_OK)
+def listar_ultimas_vendas(db: DBDependency, limite: int = Query(10, ge=1, le=100)):
     estoque_service = EstoqueService(db)
     caixa_service = CaixaService(db)
     venda_service = VendaService(db, estoque_service, caixa_service)
     usuario_service = UsuarioService(db)
     users = {u.id: u.nome for u in usuario_service.buscar_usuarios()}
-    vendas = venda_service.buscar_ultimas_vendas(limite)
+    vendas = venda_service.buscar_ultimas_vendas_com_itens(limite)
     # Enriquecer responsavel com nome, se for id numérico
-    enriched = []
-    for v in vendas:
+    for venda in vendas:
         try:
-            rid = int(v.responsavel)
-            nome = users.get(rid, v.responsavel)
-        except Exception:
-            nome = v.responsavel
-        data = v.__dict__.copy()
-        data["responsavel"] = nome
-        enriched.append(data)
-    return enriched
+            rid = int(venda["responsavel"])
+            nome = users.get(rid, venda["responsavel"])
+        except (TypeError, ValueError):
+            nome = venda["responsavel"]
+        venda["responsavel"] = nome
+    return vendas

@@ -28,10 +28,10 @@ async def login_for_access_token(
     usuario_service = UsuarioService(db)
     usuario = usuario_service.verificar_credenciais(form_data.username, form_data.password)
 
-    if not usuario:
+    if not usuario or usuario.status != "Ativo":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciais inválidas ou e-mail não encontrado.",
+            detail="Credenciais inválidas, e-mail não encontrado ou usuário inativo.",
             headers={"WWW-Authenticate": "Bearer"},
         )
 

@@ -3,16 +3,17 @@
 from fastapi import APIRouter, Depends, status, HTTPException
 from typing import Dict, List, Any
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_role
 from src.modules.categoria import CategoriaService
 from src.modules.item import ItemService
-from src.utils.models import Categoria, Item
+from src.utils.models import Categoria, Item, Usuario
 from src.utils.schemas import CategoriaCreate, ItemBase
 
 router = APIRouter(
     prefix="/catalogo",
     tags=["Catálogo (Grupos de Venda)"]
 )
+ADMIN_ONLY = require_role({"Administrador"})
 
 @router.get("/grupos", status_code=status.HTTP_200_OK)
 def get_itens_agrupados_por_categoria(db: DBDependency):
@@ -31,7 +32,11 @@ def listar_categorias(db: DBDependency):
 
 
 @router.post("/categorias", status_code=status.HTTP_201_CREATED)
-def criar_categoria(payload: CategoriaCreate, db: DBDependency):
+def criar_categoria(
+    payload: CategoriaCreate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     service = CategoriaService(db)
     cat = Categoria(
         nome=payload.nome,
@@ -53,7 +58,11 @@ def listar_itens(db: DBDependency):
 
 
 @router.post("/itens", status_code=status.HTTP_201_CREATED)
-def criar_item(payload: ItemBase, db: DBDependency):
+def criar_item(
+    payload: ItemBase,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     item_service = ItemService(db)
     existente = item_service.buscar_item_por_nome(payload.nome)
     minimo = payload.estoque_minimo
@@ -77,7 +86,12 @@ def criar_item(payload: ItemBase, db: DBDependency):
 
 
 @router.put("/itens/{item_id}")
-def atualizar_item(item_id: int, payload: ItemBase, db: DBDependency):
+def atualizar_item(
+    item_id: int,
+    payload: ItemBase,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     service = ItemService(db)
     if not service.buscar_item_por_id(item_id):
         raise HTTPException(status_code=404, detail="Item não encontrado.")

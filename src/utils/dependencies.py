@@ -56,10 +56,10 @@ def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: DBDepend
     usuario_service = UsuarioService(db)
     user = usuario_service.buscar_usuario_por_id(user_id)
 
-    if user is None:
+    if user is None or user.status != "Ativo":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuário não encontrado.",
+            detail="Usuário não encontrado ou inativo.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user

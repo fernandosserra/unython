@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_role
+from src.utils.models import Usuario
 from src.utils.schemas import FacilitadorCreate
 
 router = APIRouter(prefix="/facilitadores", tags=["Facilitadores"])
+ADMIN_ONLY = require_role({"Administrador"})
 
 
 @router.get("/")
@@ -16,7 +18,11 @@ def listar_facilitadores(db: DBDependency, apenas_ativos: bool = False):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def criar_facilitador(payload: FacilitadorCreate, db: DBDependency):
+def criar_facilitador(
+    payload: FacilitadorCreate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     fid = db.execute_query(
         "INSERT INTO facilitadores (nome, especialidade, observacoes, status) VALUES (%s, %s, %s, %s) RETURNING id",
         (payload.nome.strip(), payload.especialidade, payload.observacoes, payload.status),
@@ -26,7 +32,12 @@ def criar_facilitador(payload: FacilitadorCreate, db: DBDependency):
 
 
 @router.put("/{facilitador_id}")
-def atualizar_facilitador(facilitador_id: int, payload: FacilitadorCreate, db: DBDependency):
+def atualizar_facilitador(
+    facilitador_id: int,
+    payload: FacilitadorCreate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     count = db.execute_query(
         "UPDATE facilitadores SET nome = %s, especialidade = %s, observacoes = %s, status = %s WHERE id = %s",
         (payload.nome.strip(), payload.especialidade, payload.observacoes, payload.status, facilitador_id),
@@ -38,7 +49,11 @@ def atualizar_facilitador(facilitador_id: int, payload: FacilitadorCreate, db: D
 
 
 @router.delete("/{facilitador_id}")
-def excluir_facilitador(facilitador_id: int, db: DBDependency):
+def excluir_facilitador(
+    facilitador_id: int,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     count = db.execute_query(
         "UPDATE facilitadores SET status = 'Inativo' WHERE id = %s",
         (facilitador_id,), commit=True, return_rowcount=True,

@@ -114,3 +114,57 @@ class VendaService:
         if results:
             return [Venda(**dict(zip(columns, row))) for row in results]
         return []
+
+    def buscar_ultimas_vendas_com_itens(self, limite: int = 10) -> List[dict]:
+        """Busca vendas recentes com horário, itens e total calculado."""
+        query = """
+        SELECT v.id, v.id_pessoa, v.data_venda, v.data_hora_venda, v.responsavel,
+               v.id_evento, iv.id_item, i.nome AS nome_item, iv.quantidade,
+               iv.valor_unitario
+        FROM (
+            SELECT id, id_pessoa, data_venda, data_hora_venda, responsavel,
+                   id_evento, id_movimento_caixa
+            FROM vendas
+            ORDER BY data_hora_venda DESC NULLS LAST, id DESC
+            LIMIT %s
+        ) v
+        LEFT JOIN itens_venda iv ON iv.id_venda = v.id
+        LEFT JOIN itens i ON i.id = iv.id_item
+        ORDER BY v.data_hora_venda DESC NULLS LAST, v.id DESC, iv.id
+        """
+        columns, results = self.db.execute_query(query, (limite,), fetch_all=True)
+        sales_by_id = {}
+
+        for row in results:
+            data = dict(zip(columns, row))
+            sale = sales_by_id.setdefault(
+                data["id"],
+                {
+                    "id": data["id"],
+                    "id_pessoa": data["id_pessoa"],
+                    "data_venda": data["data_venda"],
+                    "data_hora_venda": data["data_hora_venda"],
+                    "responsavel": data["responsavel"] or "Não informado",
+                    "id_evento": data["id_evento"],
+                    "itens": [],
+                    "total": Decimal("0.00"),
+                },
+            )
+            if data["id_item"] is None:
+                continue
+
+            quantidade = int(data["quantidade"])
+            valor_unitario = Decimal(str(data["valor_unitario"]))
+            subtotal = valor_unitario * quantidade
+            sale["itens"].append(
+                {
+                    "id_item": data["id_item"],
+                    "nome": data["nome_item"] or f"Item {data['id_item']}",
+                    "quantidade": quantidade,
+                    "valor_unitario": valor_unitario,
+                    "subtotal": subtotal,
+                }
+            )
+            sale["total"] += subtotal
+
+        return list(sales_by_id.values())

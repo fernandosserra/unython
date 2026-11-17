@@ -8,12 +8,14 @@ from src.utils.schemas import UsuarioResponse, UsuarioCreate, RoleUpdate
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
-ADMIN_OR_OPERATOR = require_role({"Administrador", "Operador"})
 ADMIN_ONLY = require_role({"Administrador"})
 
 
 @router.get("/", response_model=List[UsuarioResponse])
-def listar_usuarios(db: DBDependency):
+def listar_usuarios(
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     """Lista todos os usuários sem expor hashes de senha."""
     service = UsuarioService(db)
     usuarios = service.buscar_usuarios()
@@ -35,6 +37,7 @@ def listar_usuarios(db: DBDependency):
 def criar_usuario(
     payload: UsuarioCreate,
     db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
 ):
     """Cria um novo usuário recebendo as credenciais de forma segura no corpo JSON."""
     service = UsuarioService(db)
@@ -57,7 +60,12 @@ def criar_usuario(
 
 
 @router.put("/{user_id}/role")
-def atualizar_role(user_id: int, payload: RoleUpdate, db: DBDependency):
+def atualizar_role(
+    user_id: int,
+    payload: RoleUpdate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     """Atualiza o papel e status do usuário."""
     service = UsuarioService(db)
     ok = service.atualizar_role_status(

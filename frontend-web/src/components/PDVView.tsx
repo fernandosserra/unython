@@ -14,6 +14,9 @@ import {
   ShoppingBag,
   ArrowRight,
   ChevronUp,
+  ChevronDown,
+  History,
+  RefreshCw,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useCartStore } from '../store/useCartStore';
@@ -24,6 +27,21 @@ interface PDVViewProps {
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
   onNavigateToCaixa: () => void;
+}
+
+interface VendaRecente {
+  id: number;
+  data_venda: string;
+  data_hora_venda: string | null;
+  responsavel: string;
+  itens: Array<{
+    id_item: number;
+    nome: string;
+    quantidade: number;
+    valor_unitario: number | string;
+    subtotal: number | string;
+  }>;
+  total: number | string;
 }
 
 export const PDVView: React.FC<PDVViewProps> = ({
@@ -39,6 +57,11 @@ export const PDVView: React.FC<PDVViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [recentSales, setRecentSales] = useState<VendaRecente[]>([]);
+  const [isRecentSalesOpen, setIsRecentSalesOpen] = useState(false);
+  const [isLoadingRecentSales, setIsLoadingRecentSales] = useState(false);
+  const [recentSalesError, setRecentSalesError] = useState('');
+  const [hasLoadedRecentSales, setHasLoadedRecentSales] = useState(false);
 
   // Controle de Carrinho no Celular
   const [isMobileCartOpen, setIsMobileCartOpen] = useState(false);
@@ -67,6 +90,28 @@ export const PDVView: React.FC<PDVViewProps> = ({
   useEffect(() => {
     loadCatalog();
   }, []);
+
+  const loadRecentSales = async () => {
+    setIsLoadingRecentSales(true);
+    setRecentSalesError('');
+    try {
+      const response = await apiClient.get('/vendas/ultimas', { params: { limite: 10 } });
+      setRecentSales(response.data || []);
+      setHasLoadedRecentSales(true);
+    } catch (err) {
+      console.error('Erro ao carregar últimas vendas:', err);
+      setRecentSalesError('Não foi possível carregar as últimas vendas.');
+      setHasLoadedRecentSales(false);
+    } finally {
+      setIsLoadingRecentSales(false);
+    }
+  };
+
+  const toggleRecentSales = () => {
+    const opening = !isRecentSalesOpen;
+    setIsRecentSalesOpen(opening);
+    if (opening && (!hasLoadedRecentSales || recentSalesError)) void loadRecentSales();
+  };
 
   // Lista linear de todos os itens com categoria
   const allItems = useMemo(() => {
@@ -179,6 +224,75 @@ export const PDVView: React.FC<PDVViewProps> = ({
             </button>
           </div>
         )}
+
+        <section className="mb-3 rounded-2xl border border-slate-200/80 bg-white shadow-xs">
+          <div className="flex items-center justify-between gap-3 p-3">
+            <button
+              type="button"
+              onClick={toggleRecentSales}
+              aria-expanded={isRecentSalesOpen}
+              aria-controls="pdv-recent-sales"
+              className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-bold text-slate-800"
+            >
+              <History className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>Últimas vendas</span>
+              <span className="text-xs font-medium text-slate-400">(10)</span>
+              {isRecentSalesOpen ? (
+                <ChevronUp className="ml-auto h-4 w-4 shrink-0" />
+              ) : (
+                <ChevronDown className="ml-auto h-4 w-4 shrink-0" />
+              )}
+            </button>
+            {isRecentSalesOpen && (
+              <button
+                type="button"
+                onClick={() => void loadRecentSales()}
+                disabled={isLoadingRecentSales}
+                aria-label="Atualizar últimas vendas"
+                className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${isLoadingRecentSales ? 'animate-spin' : ''}`} />
+              </button>
+            )}
+          </div>
+          {isRecentSalesOpen && (
+            <div id="pdv-recent-sales" className="max-h-64 space-y-2 overflow-y-auto border-t border-slate-100 p-3">
+              {isLoadingRecentSales ? (
+                <p className="text-xs text-slate-500">Carregando vendas...</p>
+              ) : recentSalesError ? (
+                <p role="alert" className="text-xs font-medium text-rose-700">{recentSalesError}</p>
+              ) : recentSales.length === 0 ? (
+                <p className="text-xs text-slate-500">Nenhuma venda registrada.</p>
+              ) : (
+                recentSales.map((sale) => (
+                  <article key={sale.id} className="rounded-xl border border-slate-100 bg-slate-50 p-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-bold text-slate-800">Venda #{sale.id}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {sale.data_hora_venda
+                            ? new Date(sale.data_hora_venda).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+                            : `${sale.data_venda.split('-').reverse().join('/')} · horário não registrado`}
+                        </p>
+                      </div>
+                      <p className="whitespace-nowrap text-xs font-black text-emerald-700">
+                        R$ {Number(sale.total).toFixed(2).replace('.', ',')}
+                      </p>
+                    </div>
+                    <ul className="mt-1.5 space-y-0.5">
+                      {sale.itens.map((item, index) => (
+                        <li key={`${sale.id}-${item.id_item}-${index}`} className="text-[11px] text-slate-600">
+                          {item.quantidade}× {item.nome} · R$ {Number(item.subtotal).toFixed(2).replace('.', ',')}
+                        </li>
+                      ))}
+                    </ul>
+                    <p className="mt-1.5 text-[11px] text-slate-500">Responsável: {sale.responsavel}</p>
+                  </article>
+                ))
+              )}
+            </div>
+          )}
+        </section>
 
         {/* Barra de Pesquisa e Filtro de Categorias */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-3 sm:p-4 mb-3 sm:mb-4">

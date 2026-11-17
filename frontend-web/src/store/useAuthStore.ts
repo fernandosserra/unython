@@ -8,9 +8,12 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  notice: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   setUser: (user: Usuario) => void;
+  setNotice: (notice: string) => void;
+  clearNotice: () => void;
   clearError: () => void;
 }
 
@@ -33,9 +36,10 @@ export const useAuthStore = create<AuthState>((set) => {
     isAuthenticated: !!savedToken,
     isLoading: false,
     error: null,
+    notice: null,
 
     login: async (email: string, password: string) => {
-      set({ isLoading: true, error: null });
+      set({ isLoading: true, error: null, notice: null });
       try {
         const formData = new URLSearchParams();
         formData.append('username', email);
@@ -83,6 +87,8 @@ export const useAuthStore = create<AuthState>((set) => {
       set({ user });
     },
 
+    setNotice: (notice: string) => set({ notice }),
+    clearNotice: () => set({ notice: null }),
     clearError: () => set({ error: null }),
   };
 });

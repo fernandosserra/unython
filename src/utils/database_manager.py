@@ -394,6 +394,7 @@ class DatabaseManager:
             id SERIAL PRIMARY KEY,
             id_pessoa INTEGER,
             data_venda DATE NOT NULL DEFAULT NOW(),
+            data_hora_venda TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             id_evento INTEGER NOT NULL,
             responsavel VARCHAR(255),
             id_movimento_caixa INTEGER NOT NULL,
@@ -451,6 +452,8 @@ class DatabaseManager:
         ALTER TABLE itens ALTER COLUMN valor_compra DROP NOT NULL;
         ALTER TABLE movimentos_financeiros ADD COLUMN IF NOT EXISTS nome_doador VARCHAR(255);
         ALTER TABLE movimentos_financeiros ADD COLUMN IF NOT EXISTS forma_pagamento VARCHAR(100);
+        ALTER TABLE vendas ADD COLUMN IF NOT EXISTS data_hora_venda TIMESTAMP WITH TIME ZONE;
+        ALTER TABLE vendas ALTER COLUMN data_hora_venda SET DEFAULT CURRENT_TIMESTAMP;
 
         -- Converte os vínculos antigos com usuários uma única vez, preservando o histórico.
         DO $$

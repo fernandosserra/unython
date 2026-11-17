@@ -20,6 +20,10 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
   const [tipo, setTipo] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dataInicioHistorico, setDataInicioHistorico] = useState('');
+  const [dataFimHistorico, setDataFimHistorico] = useState('');
+  const [historico, setHistorico] = useState<Evento[]>([]);
+  const [consultouHistorico, setConsultouHistorico] = useState(false);
   const year = month.getFullYear();
   const monthIndex = month.getMonth();
   const days = new Date(year, monthIndex + 1, 0).getDate();
@@ -36,6 +40,31 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
   };
 
   useEffect(() => { void load(); }, [year, monthIndex]);
+
+  const consultarHistorico = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!dataInicioHistorico || !dataFimHistorico) {
+      setError('Informe a data inicial e a data final do histórico.');
+      return;
+    }
+    if (dataInicioHistorico > dataFimHistorico) {
+      setError('A data inicial deve ser anterior ou igual à data final.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiClient.get('/eventos/', {
+        params: { data_inicio: dataInicioHistorico, data_fim: dataFimHistorico },
+      });
+      setHistorico(res.data || []);
+      setConsultouHistorico(true);
+      setError('');
+    } catch {
+      setError('Não foi possível consultar o histórico de eventos.');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const criar = async (e: FormEvent) => {
     e.preventDefault();
@@ -76,6 +105,30 @@ export function CalendarioView({ activeEvento, onRefreshState }: Props) {
       <label className="text-xs font-bold">Tipo<input required value={tipo} onChange={e => setTipo(e.target.value)} className="block border rounded-lg p-2" /></label>
       <button disabled={busy} className="bg-emerald-700 text-white rounded-lg p-2 font-bold text-sm">Criar evento</button>
     </form>
+    <section className="bg-white rounded-2xl p-4 space-y-3">
+      <h2 className="font-bold">Histórico de eventos</h2>
+      <form onSubmit={consultarHistorico} className="flex flex-wrap gap-3 items-end">
+        <label className="text-xs font-bold">Data inicial
+          <input required type="date" value={dataInicioHistorico} onChange={e => setDataInicioHistorico(e.target.value)} className="block border rounded-lg p-2" />
+        </label>
+        <label className="text-xs font-bold">Data final
+          <input required type="date" value={dataFimHistorico} onChange={e => setDataFimHistorico(e.target.value)} className="block border rounded-lg p-2" />
+        </label>
+        <button disabled={busy} className="bg-slate-800 text-white rounded-lg p-2 font-bold text-sm">Consultar período</button>
+      </form>
+      {consultouHistorico && (
+        historico.length ? (
+          <ul className="divide-y divide-slate-100">
+            {historico.map(evento => (
+              <li key={evento.id} className="py-2 text-sm">
+                <span className="font-bold">{evento.data_evento.split('-').reverse().join('/')} · {evento.nome}</span>
+                <span className="text-slate-500"> · {evento.tipo} · {evento.status}</span>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="text-sm text-slate-500">Nenhum evento encontrado no período selecionado.</p>
+      )}
+    </section>
     <div className="bg-white rounded-2xl p-4">
       <div className="flex items-center justify-between mb-4">
         <button type="button" aria-label="Mês anterior" onClick={() => setMonth(new Date(year, monthIndex - 1, 1))}>←</button>

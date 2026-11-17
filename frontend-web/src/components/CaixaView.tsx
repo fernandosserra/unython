@@ -30,6 +30,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const [nomeNovoEvento, setNomeNovoEvento] = useState('');
   const [tipoNovoEvento, setTipoNovoEvento] = useState('Atendimento');
   const [nomeNovoCaixa, setNomeNovoCaixa] = useState('');
+  const [descricaoNovoCaixa, setDescricaoNovoCaixa] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -138,10 +139,11 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
     try {
       await apiClient.post('/caixas/', {
         nome: nomeNovoCaixa,
-        descricao: 'Ponto de venda físico',
+        descricao: descricaoNovoCaixa.trim() || null,
         status: 'Ativo',
       });
       setNomeNovoCaixa('');
+      setDescricaoNovoCaixa('');
       await fetchCaixas();
       setMessage({ type: 'success', text: 'Novo caixa cadastrado!' });
     } catch (err: any) {
@@ -380,17 +382,25 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
               Cadastrar Novo Ponto de Venda Físico (Opcional)
             </h3>
           </div>
-          <form onSubmit={handleCriarCaixa} className="flex gap-2">
+          <form onSubmit={handleCriarCaixa} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
             <input
               type="text"
+              required
               value={nomeNovoCaixa}
               onChange={(e) => setNomeNovoCaixa(e.target.value)}
               placeholder="Ex: Caixa 2 - Pastelaria / Bazar"
-              className="flex-1 h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+              className="h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
+            />
+            <input
+              type="text"
+              value={descricaoNovoCaixa}
+              onChange={(e) => setDescricaoNovoCaixa(e.target.value)}
+              placeholder="Descrição (opcional)"
+              className="h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
             />
             <button
               type="submit"
-              disabled={isLoading || !nomeNovoCaixa}
+              disabled={isLoading || !nomeNovoCaixa.trim()}
               className="h-11 px-5 bg-slate-800 hover:bg-slate-900 disabled:bg-slate-200 disabled:text-slate-400 text-white rounded-xl text-xs sm:text-sm font-bold transition-all cursor-pointer shrink-0 flex items-center justify-center"
             >
               Adicionar Caixa

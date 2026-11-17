@@ -7,12 +7,13 @@ import { AgendamentosView } from './components/AgendamentosView';
 import { CaixaView } from './components/CaixaView';
 import { AdminView } from './components/AdminView';
 import { DoacoesView } from './components/DoacoesView';
+import { ChangePasswordModal } from './components/ChangePasswordModal';
 import { ConnectMobileModal } from './components/ConnectMobileModal';
 import { apiClient } from './api/client';
 import type { Evento, MovimentoCaixa } from './types';
 
 export function App() {
-  const { isAuthenticated, logout } = useAuthStore();
+  const { isAuthenticated, logout, user } = useAuthStore();
   const [currentTab, setCurrentTab] = useState<'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes'>('pdv');
   const [activeEvento, setActiveEvento] = useState<Evento | null>(null);
   const [activeMovimento, setActiveMovimento] = useState<MovimentoCaixa | null>(null);
@@ -74,6 +75,12 @@ export function App() {
     }
   }, [isAuthenticated, refreshActiveSession]);
 
+  useEffect(() => {
+    if (currentTab === 'admin' && user?.role !== 'Administrador') {
+      setCurrentTab('pdv');
+    }
+  }, [currentTab, user?.role]);
+
   // Listener para token expirado
   useEffect(() => {
     const handleExpired = () => {
@@ -85,6 +92,10 @@ export function App() {
 
   if (!isAuthenticated) {
     return <LoginView />;
+  }
+
+  if (user?.require_password_change) {
+    return <ChangePasswordModal isOpen required onClose={logout} />;
   }
 
   return (

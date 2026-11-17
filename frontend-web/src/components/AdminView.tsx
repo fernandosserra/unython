@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowDownCircle,
+  ArrowUpCircle,
   Shield,
   Smartphone,
 } from 'lucide-react';
@@ -28,7 +29,7 @@ interface AdminViewProps {
 }
 
 export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState }) => {
-  const { user } = useAuthStore();
+  const { user, setUser, setNotice, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState<'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades'>('produtos');
   const [termos, setTermos] = useState({ termo_atendente: 'Atendente', termo_atividade: 'Entidade / Serviço' });
 
@@ -52,7 +53,8 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   // Formulário Entrada de Estoque
   const [estoqueItemId, setEstoqueItemId] = useState<number | ''>('');
   const [estoqueQtd, setEstoqueQtd] = useState<number>(10);
-  const [estoqueOrigem, setEstoqueOrigem] = useState<string>('Doacao');
+  const [estoqueTipo, setEstoqueTipo] = useState<'Entrada' | 'Saida'>('Entrada');
+  const [estoqueOrigem, setEstoqueOrigem] = useState<string>('Doação');
 
   // Formulário Usuário
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -61,6 +63,11 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
   const [funcaoUser, setFuncaoUser] = useState('Voluntário');
   const [roleUser, setRoleUser] = useState<'Administrador' | 'Operador' | 'Recepcionista' | 'Vendedor'>('Vendedor');
   const [senhaUser, setSenhaUser] = useState('');
+  const [requirePasswordChange, setRequirePasswordChange] = useState(true);
+  const [editingUser, setEditingUser] = useState<Usuario | null>(null);
+  const [editingFuncao, setEditingFuncao] = useState('');
+  const [editingRole, setEditingRole] = useState<Usuario['role']>('Vendedor');
+  const [editingStatus, setEditingStatus] = useState<Usuario['status']>('Ativo');
 
   // Feedback e Modal
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -166,26 +173,31 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
     }
   };
 
-  // Salvar Entrada de Estoque
-  const handleEntradaEstoque = async (e: React.FormEvent) => {
+  // Salvar movimentação manual de estoque
+  const handleMovimentacaoEstoque = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!estoqueItemId || !activeEvento) {
       showFeedback('error', !activeEvento ? 'Abra um Evento antes de lançar estoque.' : 'Selecione um produto.');
       return;
     }
+    if (!estoqueOrigem.trim()) {
+      showFeedback('error', 'Informe a origem ou o motivo da movimentação.');
+      return;
+    }
     setIsLoading(true);
     try {
-      await apiClient.post('/estoque/entrada', {
+      await apiClient.post(estoqueTipo === 'Entrada' ? '/estoque/entrada' : '/estoque/saida', {
         itemId: Number(estoqueItemId),
         quantidade: Number(estoqueQtd),
-        origem_recurso: estoqueOrigem,
+        origem_recurso: estoqueOrigem.trim(),
         usuarioId: user?.id || 1,
         eventoId: activeEvento.id,
       });
-      showFeedback('success', `Entrada de ${estoqueQtd} unidades registrada no estoque!`);
+      showFeedback('success', `${estoqueTipo} de ${estoqueQtd} unidades registrada no estoque!`);
       setEstoqueQtd(10);
+      setEstoqueOrigem('');
     } catch (err: any) {
-      showFeedback('error', err.response?.data?.detail || 'Erro ao lançar entrada de estoque.');
+      showFeedback('error', err.response?.data?.detail || 'Erro ao registrar movimentação de estoque.');
     } finally {
       setIsLoading(false);
     }
@@ -207,18 +219,55 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
         role: roleUser,
         status: 'Ativo',
         senha: senhaUser,
-        require_password_change: false,
+        require_password_change: requirePasswordChange,
       });
       showFeedback('success', `Usuário "${nomeUser}" cadastrado!`);
       setNomeUser('');
       setEmailUser('');
       setSenhaUser('');
+      setRequirePasswordChange(true);
       await loadUsers();
     } catch (err: any) {
       showFeedback('error', err.response?.data?.detail || 'Erro ao cadastrar usuário.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser) return;
+
+    setIsLoading(true);
+    try {
+      await apiClient.put(`/usuarios/${editingUser.id}/role`, {
+        role: editingRole,
+        status: editingStatus,
+        funcao: editingFuncao,
+      });
+      if (editingUser.id === user?.id) {
+        if (editingStatus === 'Inativo') {
+          setNotice('Sua conta foi desativada. Entre em contato com um administrador.');
+          logout();
+          return;
+        }
+        setUser({ ...user, role: editingRole, status: editingStatus, funcao: editingFuncao });
+      }
+      showFeedback('success', `Usuário "${editingUser.nome}" atualizado.`);
+      setEditingUser(null);
+      await loadUsers();
+    } catch (err: any) {
+      showFeedback('error', err.response?.data?.detail || 'Erro ao atualizar usuário.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const startEditingUser = (usuario: Usuario) => {
+    setEditingUser(usuario);
+    setEditingFuncao(usuario.funcao || '');
+    setEditingRole(usuario.role);
+    setEditingStatus(usuario.status);
   };
 
   const filteredProdutos = itens.filter((i) =>
@@ -525,15 +574,35 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
           </div>
         )}
 
-        {/* Conteúdo da Aba 2: Entrada de Estoque */}
+        {/* Conteúdo da Aba 2: Movimentação de Estoque */}
         {activeTab === 'estoque' && (
           <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs max-w-xl mx-auto">
             <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
-              <ArrowDownCircle className="w-5 h-5 text-emerald-600" />
-              <h3 className="font-black text-slate-900 text-base">Registrar Entrada de Estoque</h3>
+              {estoqueTipo === 'Entrada'
+                ? <ArrowDownCircle className="w-5 h-5 text-emerald-600" />
+                : <ArrowUpCircle className="w-5 h-5 text-rose-600" />}
+              <h3 className="font-black text-slate-900 text-base">Movimentação Manual de Estoque</h3>
             </div>
 
-            <form onSubmit={handleEntradaEstoque} className="space-y-4">
+            <form onSubmit={handleMovimentacaoEstoque} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Tipo de Movimentação
+                </label>
+                <select
+                  value={estoqueTipo}
+                  onChange={(e) => {
+                    const tipo = e.target.value as 'Entrada' | 'Saida';
+                    setEstoqueTipo(tipo);
+                    setEstoqueOrigem(tipo === 'Entrada' ? 'Doação' : 'Consumo Interno');
+                  }}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
+                >
+                  <option value="Entrada">Entrada</option>
+                  <option value="Saida">Saída</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                   Selecione o Produto
@@ -554,7 +623,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Quantidade de Entrada
+                    Quantidade de {estoqueTipo === 'Entrada' ? 'Entrada' : 'Saída'}
                   </label>
                   <input
                     type="number"
@@ -570,15 +639,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                   <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                     Origem / Motivo
                   </label>
-                  <select
+                  <input
+                    type="text"
+                    required
                     value={estoqueOrigem}
                     onChange={(e) => setEstoqueOrigem(e.target.value)}
+                    placeholder={estoqueTipo === 'Entrada' ? 'Ex.: Doação recebida' : 'Ex.: Consumo interno'}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
-                  >
-                    <option value="Doacao">Doação Recebida</option>
-                    <option value="Compra">Compra da Instituição</option>
-                    <option value="Ajuste">Ajuste de Balanço</option>
-                  </select>
+                  />
                 </div>
               </div>
 
@@ -598,7 +666,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                 className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
-                <span>Registrar Entrada</span>
+                <span>Registrar {estoqueTipo === 'Entrada' ? 'Entrada' : 'Saída'}</span>
               </button>
             </form>
           </div>
@@ -680,6 +748,16 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                     </div>
                   </div>
 
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={requirePasswordChange}
+                      onChange={(e) => setRequirePasswordChange(e.target.checked)}
+                      className="rounded border-slate-300 text-emerald-600"
+                    />
+                    Exigir troca de senha no primeiro login
+                  </label>
+
                   <button
                     type="submit"
                     disabled={isLoading}
@@ -701,15 +779,85 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshSta
                   {usuarios.map((u) => (
                     <div
                       key={u.id}
-                      className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between"
+                      className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80"
                     >
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{u.nome}</h4>
-                        <p className="text-[11px] text-slate-500">{u.email}</p>
-                      </div>
-                      <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-200 text-slate-800">
-                        {u.role}
-                      </span>
+                      {editingUser?.id === u.id ? (
+                        <form onSubmit={handleUpdateUser} className="space-y-2">
+                          <p className="font-bold text-slate-900 text-xs">{u.nome}</p>
+                          <p className="text-[11px] text-slate-500">{u.email}</p>
+                          <label className="block text-xs font-semibold text-slate-700">
+                            Função
+                            <input
+                              required
+                              value={editingFuncao}
+                              onChange={(e) => setEditingFuncao(e.target.value)}
+                              className="mt-1 block w-full border border-slate-200 rounded-lg p-2"
+                            />
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="block text-xs font-semibold text-slate-700">
+                              Papel
+                              <select
+                                value={editingRole}
+                                onChange={(e) => setEditingRole(e.target.value as Usuario['role'])}
+                                className="mt-1 block w-full border border-slate-200 rounded-lg p-2"
+                              >
+                                <option value="Administrador">Administrador</option>
+                                <option value="Operador">Operador</option>
+                                <option value="Recepcionista">Recepcionista</option>
+                                <option value="Vendedor">Vendedor</option>
+                              </select>
+                            </label>
+                            <label className="block text-xs font-semibold text-slate-700">
+                              Status
+                              <select
+                                value={editingStatus}
+                                onChange={(e) => setEditingStatus(e.target.value as Usuario['status'])}
+                                className="mt-1 block w-full border border-slate-200 rounded-lg p-2"
+                              >
+                                <option value="Ativo">Ativo</option>
+                                <option value="Inativo">Inativo</option>
+                              </select>
+                            </label>
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="submit"
+                              disabled={isLoading}
+                              className="text-xs font-bold text-white bg-emerald-700 rounded-lg px-3 py-1.5 disabled:opacity-50"
+                            >
+                              Salvar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setEditingUser(null)}
+                              className="text-xs font-bold text-slate-600 px-2"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        </form>
+                      ) : (
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-bold text-slate-900 text-xs">{u.nome}</h4>
+                            <p className="text-[11px] text-slate-500">{u.email}</p>
+                            <p className="text-[11px] text-slate-500">{u.funcao} · {u.status}</p>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-200 text-slate-800">
+                              {u.role}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => startEditingUser(u)}
+                              className="text-xs font-bold text-emerald-700"
+                            >
+                              Editar
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

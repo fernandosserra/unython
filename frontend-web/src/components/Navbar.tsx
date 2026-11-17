@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ShoppingBag,
   Users,
@@ -7,9 +7,11 @@ import {
   LogOut,
   HeartHandshake,
   Smartphone,
+  KeyRound,
 } from 'lucide-react';
 import { useAuthStore } from '../store/useAuthStore';
 import type { Evento, MovimentoCaixa } from '../types';
+import { ChangePasswordModal } from './ChangePasswordModal';
 
 interface NavbarProps {
   currentTab: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes';
@@ -29,6 +31,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   orgNomeOrganizacao,
 }) => {
   const { user, logout } = useAuthStore();
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
 
   const navItems: { id: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'pdv', label: 'PDV / Vendas', icon: ShoppingBag },
@@ -37,6 +40,9 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'doacoes', label: 'Doações', icon: HeartHandshake },
     { id: 'admin', label: 'Administração', icon: Settings },
   ];
+  const visibleNavItems = navItems.filter(
+    (item) => item.id !== 'admin' || user?.role === 'Administrador'
+  );
 
   return (
     <>
@@ -64,7 +70,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             {/* Navegação Central Segmentada (Tabs Perfeitamente Simétricas) */}
             <nav className="hidden lg:inline-flex items-center p-1 bg-slate-100/90 rounded-2xl border border-slate-200/70 shadow-inner shrink-0">
-              {navItems.map((item) => {
+              {visibleNavItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = currentTab === item.id;
                 return (
@@ -120,6 +126,15 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <p className="text-[10px] text-slate-500 font-semibold leading-tight">{user?.role}</p>
                 </div>
                 <button
+                  type="button"
+                  onClick={() => setIsPasswordModalOpen(true)}
+                  title="Alterar senha"
+                  aria-label="Alterar senha"
+                  className="h-9 w-9 rounded-xl border border-slate-200/80 bg-white hover:bg-emerald-50 text-slate-500 hover:text-emerald-700 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
+                >
+                  <KeyRound className="w-4 h-4" />
+                </button>
+                <button
                   onClick={logout}
                   title="Sair do sistema"
                   className="h-9 w-9 rounded-xl border border-slate-200/80 bg-white hover:bg-rose-50 hover:border-rose-200 text-slate-500 hover:text-rose-600 flex items-center justify-center transition-all cursor-pointer shadow-2xs"
@@ -134,7 +149,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Barra de Navegação Inferior (Mobile Bottom Navigation Bar) */}
       <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1.5 flex items-center justify-around shadow-2xl safe-area-bottom">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const Icon = item.icon;
           const isActive = currentTab === item.id;
           return (
@@ -153,6 +168,10 @@ export const Navbar: React.FC<NavbarProps> = ({
           );
         })}
       </nav>
+      <ChangePasswordModal
+        isOpen={isPasswordModalOpen}
+        onClose={() => setIsPasswordModalOpen(false)}
+      />
     </>
   );
 };

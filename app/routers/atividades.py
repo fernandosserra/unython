@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 
-from src.utils.dependencies import DBDependency
+from src.utils.dependencies import DBDependency, require_role
+from src.utils.models import Usuario
 from src.utils.schemas import AtividadeCreate
 
 router = APIRouter(prefix="/atividades", tags=["Entidades e serviços"])
+ADMIN_ONLY = require_role({"Administrador"})
 
 
 @router.get("/")
@@ -16,7 +18,11 @@ def listar_atividades(db: DBDependency, apenas_ativos: bool = False):
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
-def criar_atividade(payload: AtividadeCreate, db: DBDependency):
+def criar_atividade(
+    payload: AtividadeCreate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     aid = db.execute_query(
         "INSERT INTO atividades_atendimento (nome, descricao, status) VALUES (%s, %s, %s) RETURNING id",
         (payload.nome, payload.descricao, payload.status), commit=True,
@@ -25,7 +31,12 @@ def criar_atividade(payload: AtividadeCreate, db: DBDependency):
 
 
 @router.put("/{atividade_id}")
-def atualizar_atividade(atividade_id: int, payload: AtividadeCreate, db: DBDependency):
+def atualizar_atividade(
+    atividade_id: int,
+    payload: AtividadeCreate,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     count = db.execute_query(
         "UPDATE atividades_atendimento SET nome = %s, descricao = %s, status = %s WHERE id = %s",
         (payload.nome, payload.descricao, payload.status, atividade_id), commit=True, return_rowcount=True,
@@ -36,7 +47,11 @@ def atualizar_atividade(atividade_id: int, payload: AtividadeCreate, db: DBDepen
 
 
 @router.delete("/{atividade_id}")
-def inativar_atividade(atividade_id: int, db: DBDependency):
+def inativar_atividade(
+    atividade_id: int,
+    db: DBDependency,
+    current_user: Usuario = Depends(ADMIN_ONLY),
+):
     count = db.execute_query(
         "UPDATE atividades_atendimento SET status = 'Inativo' WHERE id = %s",
         (atividade_id,), commit=True, return_rowcount=True,
