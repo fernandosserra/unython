@@ -8,6 +8,7 @@ from src.utils.dependencies import DBDependency
 from src.modules.agendamento import AgendamentoService
 from src.modules.pessoa import PessoaService
 from src.modules.relatorio import RelatorioService
+from src.modules.organizacao import OrganizacaoService
 from src.utils.models import Pessoa
 from src.utils.schemas import (
     AgendamentoUpdateStatus,
@@ -20,6 +21,28 @@ router = APIRouter(
     prefix="/agendamentos",
     tags=["Logística, Acolhimento e Atendimentos"]
 )
+
+
+def validar_facilitador(db: DBDependency, facilitador_id: Optional[int]):
+    if facilitador_id is not None:
+        _, row = db.execute_query(
+            "SELECT id FROM facilitadores WHERE id = %s AND status = 'Ativo'",
+            (facilitador_id,), fetch_one=True,
+        )
+        if not row:
+            raise HTTPException(status_code=400, detail="Atendente não encontrado ou inativo.")
+
+
+def validar_atividade(db: DBDependency, atividade_id: Optional[int]):
+    if atividade_id is not None:
+        _, row = db.execute_query(
+            "SELECT nome FROM atividades_atendimento WHERE id = %s AND status = 'Ativo'",
+            (atividade_id,), fetch_one=True,
+        )
+        if not row:
+            raise HTTPException(status_code=400, detail="Cadastro não encontrado ou inativo.")
+        return row[0]
+    return None
 
 
 @router.get("/fila/{id_evento}", response_model=List[AgendamentoFilaItem])
@@ -50,6 +73,9 @@ def agendar_com_antecedencia(payload: AcolhimentoCreateRequest, db: DBDependency
     Registra um agendamento com antecedência para um evento futuro.
     A senha de atendimento será emitida no dia do evento quando o consulente fizer o Check-in.
     """
+    validar_facilitador(db, payload.id_facilitador)
+    atividade = validar_atividade(db, payload.id_atividade)
+    tipo_servico = payload.tipo_servico or atividade or OrganizacaoService(db).obter_configuracoes().termo_servico
     pessoa_service = PessoaService(db)
     agendamento_service = AgendamentoService(db)
 
@@ -78,8 +104,9 @@ def agendar_com_antecedencia(payload: AcolhimentoCreateRequest, db: DBDependency
         id_evento=payload.id_evento,
         id_pessoa=id_pessoa,
         preferencial=payload.preferencial,
-        tipo_servico=payload.tipo_servico or "Passe / Consulta",
+        tipo_servico=tipo_servico,
         id_facilitador=payload.id_facilitador,
+        id_atividade=payload.id_atividade,
         observacoes=payload.observacoes,
     )
 
@@ -125,6 +152,9 @@ def acolher_pessoa_no_evento(payload: AcolhimentoCreateRequest, db: DBDependency
     Se for fornecido nome, cadastra automaticamente a nova pessoa e a coloca na fila.
     Gera senha sequencial cronológica (P-01 para preferencial, G-01 para comum).
     """
+    validar_facilitador(db, payload.id_facilitador)
+    atividade = validar_atividade(db, payload.id_atividade)
+    tipo_servico = payload.tipo_servico or atividade or OrganizacaoService(db).obter_configuracoes().termo_servico
     pessoa_service = PessoaService(db)
     agendamento_service = AgendamentoService(db)
 
@@ -156,8 +186,9 @@ def acolher_pessoa_no_evento(payload: AcolhimentoCreateRequest, db: DBDependency
         id_evento=payload.id_evento,
         id_pessoa=id_pessoa,
         preferencial=payload.preferencial,
-        tipo_servico=payload.tipo_servico or "Passe / Consulta",
+        tipo_servico=tipo_servico,
         id_facilitador=payload.id_facilitador,
+        id_atividade=payload.id_atividade,
         observacoes=payload.observacoes,
     )
 

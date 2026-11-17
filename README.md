@@ -55,6 +55,14 @@ port = 5432
 
 > **Dica:** O `DatabaseManager` cria todas as tabelas e índices automaticamente no primeiro arranque com ordenação estrita de chaves estrangeiras.
 
+Ao atualizar uma instalação existente, faça backup do PostgreSQL antes de iniciar a nova versão. Na inicialização, o estoque mínimo dos produtos existentes é definido como zero e os facilitadores anteriormente vinculados a usuários são copiados para o novo cadastro, preservando os agendamentos.
+
+Na Administração, defina o estoque mínimo de cada produto e mantenha seu preço de custo atualizado. O preço pode ficar em branco quando for desconhecido; zero representa um custo conhecido de zero. O relatório de estoque avisa sobre preços ausentes e calcula a reposição com os preços cadastrados, não com um histórico automático de compras.
+
+Em Atendimentos, configure os termos de pessoas atendidas, atendentes e entidades ou serviços. Na Administração, mantenha cadastros independentes para atendentes e para entidades ou serviços; ambos podem ser selecionados nos agendamentos. Cadastros antigos de facilitadores permanecem como estavam e não são classificados automaticamente. A inativação preserva os vínculos anteriores.
+
+A seção Doações registra receitas com data, valor e dados opcionais do doador, forma de pagamento e evento, sem exigir evento ou caixa aberto. As doações ativas integram o saldo do fluxo financeiro; o cancelamento preserva o histórico e remove o valor do saldo. Elas não são lançadas automaticamente em uma sessão de caixa físico.
+
 ---
 
 ## 🚀 Como Executar
@@ -104,9 +112,14 @@ O build compilado em `dist/` é instantaneamente reconhecido pelo FastAPI.
 
 ## 🧪 Testes Automatizados
 
-Com o PostgreSQL ativo e configurado em `config/secrets.toml`:
+Os testes de integração **apagam os dados das tabelas antes e depois de cada teste**. Execute-os apenas com um PostgreSQL descartável e isolado, configurado em `config/secrets.toml` ou variáveis de ambiente:
 ```bash
 pytest -vv tests/teste_fluxo_geral.py
+```
+
+Os testes isolados de projeção e facilitadores não usam PostgreSQL:
+```bash
+python -m pytest -q unit_tests
 ```
 
 ---

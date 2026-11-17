@@ -55,14 +55,32 @@ def listar_itens(db: DBDependency):
 @router.post("/itens", status_code=status.HTTP_201_CREATED)
 def criar_item(payload: ItemBase, db: DBDependency):
     item_service = ItemService(db)
+    existente = item_service.buscar_item_por_nome(payload.nome)
+    minimo = payload.estoque_minimo
+    if existente and "estoque_minimo" not in payload.model_fields_set:
+        minimo = existente.estoque_minimo
+    valor_compra = payload.valor_compra
+    if existente and "valor_compra" not in payload.model_fields_set:
+        valor_compra = existente.valor_compra
     item = Item(
         nome=payload.nome,
-        valor_compra=payload.valor_compra,
+        valor_compra=valor_compra,
         valor_venda=payload.valor_venda,
         id_categoria=payload.id_categoria,
         status=payload.status,
+        estoque_minimo=minimo,
     )
     iid = item_service.registrar_item(item)
     if not iid:
         raise HTTPException(status_code=400, detail="Não foi possível cadastrar o item.")
     return {"id": iid, "nome": payload.nome}
+
+
+@router.put("/itens/{item_id}")
+def atualizar_item(item_id: int, payload: ItemBase, db: DBDependency):
+    service = ItemService(db)
+    if not service.buscar_item_por_id(item_id):
+        raise HTTPException(status_code=404, detail="Item não encontrado.")
+    service.editar_item(item_id, payload.nome, payload.valor_compra, payload.valor_venda,
+                        payload.status, payload.id_categoria, payload.estoque_minimo)
+    return {"id": item_id, "nome": payload.nome}

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Literal
 from datetime import datetime, date
 from decimal import Decimal
@@ -14,10 +14,41 @@ class CategoriaCreate(BaseModel):
 class ItemBase(BaseModel):
     """Modelo base para criar ou atualizar um Item (Catalogo)."""
     nome: str = Field(..., min_length=2, max_length=255)
-    valor_compra: Decimal = Field(..., gt=Decimal("0.0"))
+    valor_compra: Optional[Decimal] = Field(default=None, ge=Decimal("0.0"))
     valor_venda: Decimal = Field(..., gt=Decimal("0.0"))
     status: str = 'Ativo'
     id_categoria: Optional[int] = None
+    estoque_minimo: int = Field(default=0, ge=0)
+
+
+class FacilitadorCreate(BaseModel):
+    nome: str = Field(..., min_length=2, max_length=255)
+    especialidade: Optional[str] = Field(None, max_length=255)
+    observacoes: Optional[str] = None
+    status: Literal['Ativo', 'Inativo'] = 'Ativo'
+
+    @validator('nome', pre=True)
+    def limpar_nome(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class AtividadeCreate(BaseModel):
+    nome: str = Field(..., min_length=2, max_length=255)
+    descricao: Optional[str] = None
+    status: Literal['Ativo', 'Inativo'] = 'Ativo'
+
+    @validator('nome', pre=True)
+    def limpar_nome(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
+class DoacaoCreate(BaseModel):
+    valor: Decimal = Field(..., gt=Decimal("0"), max_digits=10, decimal_places=2)
+    data: date
+    nome_doador: Optional[str] = Field(None, max_length=255)
+    forma_pagamento: Optional[str] = Field(None, max_length=100)
+    descricao: Optional[str] = None
+    id_evento: Optional[int] = Field(None, gt=0)
 
 
 class ItemVendaRequest(BaseModel):
@@ -58,6 +89,7 @@ class OrganizacaoConfigSchema(BaseModel):
     termo_assistido_plural: str = Field(..., min_length=2, max_length=50)
     termo_atendente: str = Field(..., min_length=2, max_length=50)
     termo_servico: str = Field(..., min_length=2, max_length=50)
+    termo_atividade: str = Field(default="Entidade / Serviço", min_length=2, max_length=50)
 
 
 class PessoaCreate(BaseModel):
@@ -88,8 +120,9 @@ class AcolhimentoCreateRequest(BaseModel):
     telefone: Optional[str] = None
     documento: Optional[str] = None
     preferencial: bool = False
-    tipo_servico: Optional[str] = "Passe / Consulta"
+    tipo_servico: Optional[str] = None
     id_facilitador: Optional[int] = None
+    id_atividade: Optional[int] = None
     observacoes: Optional[str] = None
 
 
@@ -102,6 +135,8 @@ class AgendamentoFilaItem(BaseModel):
     id_evento: int
     id_facilitador: Optional[int] = None
     facilitador: Optional[str] = None
+    id_atividade: Optional[int] = None
+    atividade: Optional[str] = None
     data_hora: datetime
     tipo_servico: str
     status: str
@@ -164,6 +199,7 @@ class InventarioResponse(BaseModel):
     saldo_atual: int
     custo_total_estoque: Decimal
     valor_venda: Decimal
+    valor_compra: Optional[Decimal] = None
 
     class Config:
         from_attributes = True

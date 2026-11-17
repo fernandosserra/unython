@@ -59,12 +59,17 @@ def seed_basico(db_manager):
     assert verify_password(senha_master, usuario_db.hashed_password), "Senha incorreta."
     assert usuario_db.role == "Administrador", "Role inesperada."
 
+    id_atendente = db_manager.execute_query(
+        "INSERT INTO facilitadores (nome, especialidade) VALUES (%s, %s) RETURNING id",
+        (facilitador.nome, facilitador.funcao), commit=True,
+    )
     pessoa = Pessoa(nome="Fernando, O Aprendiz", telefone="551199887766")
     id_pessoa = pessoa_srv.registrar_pessoa(pessoa)
 
     return {
         "id_evento": id_evento,
         "id_facilitador": id_facilitador,
+        "id_atendente": id_atendente,
         "id_pessoa": id_pessoa,
         "alias_facilitador": alias_facilitador,
     }
@@ -94,7 +99,7 @@ def test_agendamento_fluxo_inicial(db_manager, seed_basico):
 
     agendamento = Agendamento(
         id_pessoa=seed_basico["id_pessoa"],
-        id_facilitador=seed_basico["id_facilitador"],
+        id_facilitador=seed_basico["id_atendente"],
         id_evento=seed_basico["id_evento"],
         data_hora=datetime.now().replace(second=0, microsecond=0),
         tipo_servico=get_alias("TIPO_SERVICO"),
@@ -271,7 +276,7 @@ def test_agendamento_presenca_confirmada(db_manager, seed_basico):
     ag_srv = AgendamentoService(db_manager)
     agendamento = Agendamento(
         id_pessoa=seed_basico["id_pessoa"],
-        id_facilitador=seed_basico["id_facilitador"],
+        id_facilitador=seed_basico["id_atendente"],
         id_evento=seed_basico["id_evento"],
         data_hora=datetime.now().replace(second=0, microsecond=0),
         tipo_servico="Atendimento",

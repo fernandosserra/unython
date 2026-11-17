@@ -8,23 +8,44 @@ interface InventarioItem {
   saldo_atual: number;
   custo_total_estoque: number;
   valor_venda: number;
+  valor_compra: number | null;
+}
+
+interface ProjecaoItem {
+  id: number;
+  nome: string;
+  saldo_atual: number;
+  estoque_minimo: number;
+  quantidade_repor: number;
+  valor_compra: number | null;
+  custo_previsto: number;
 }
 
 export const RelatoriosView: React.FC = () => {
   const [saldoCaixa, setSaldoCaixa] = useState<string>('R$ 0,00');
   const [despesas, setDespesas] = useState<{ categoria: string; total_gasto: number }[]>([]);
   const [inventario, setInventario] = useState<InventarioItem[]>([]);
+  const [projecao, setProjecao] = useState<{ itens: ProjecaoItem[]; total_previsto: number; sem_preco: { id: number; nome: string }[] } | null>(null);
+  const [projecaoErro, setProjecaoErro] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [activeReportTab, setActiveReportTab] = useState<'financeiro' | 'estoque'>('financeiro');
 
   const fetchReports = async () => {
     setIsLoading(true);
     try {
-      const [saldoResp, despesasResp, invResp] = await Promise.allSettled([
+      const [saldoResp, despesasResp, invResp, projResp] = await Promise.allSettled([
         apiClient.get('/relatorios/caixa/saldo'),
         apiClient.get('/relatorios/despesas/categoria'),
         apiClient.get('/relatorios/inventario'),
+        apiClient.get('/relatorios/projecao-estoque'),
       ]);
+      if (projResp.status === 'fulfilled') {
+        setProjecao(projResp.value.data);
+        setProjecaoErro(false);
+      } else {
+        setProjecao(null);
+        setProjecaoErro(true);
+      }
 
       if (saldoResp.status === 'fulfilled') {
         setSaldoCaixa(saldoResp.value.data?.saldo_atual || 'R$ 0,00');
@@ -153,6 +174,22 @@ export const RelatoriosView: React.FC = () => {
         {/* ========== ABA ESTOQUE & INVENTÁRIO ========== */}
         {activeReportTab === 'estoque' && (
           <div className="space-y-4">
+            <div className="bg-white rounded-3xl p-5 border border-slate-200">
+              <h2 className="font-bold text-slate-900">Projeção de custos de reposição</h2>
+              <p className="text-xs text-slate-500 mt-1">Calculada com o preço de custo cadastrado em cada produto.</p>
+              {projecaoErro ? <p role="alert" className="text-rose-700 mt-3">Não foi possível carregar a projeção.</p> : isLoading ? <p>Carregando projeção...</p> : projecao && <>
+                <p className="font-black text-emerald-700 mt-3">Investimento previsto: R$ {Number(projecao.total_previsto).toFixed(2).replace('.', ',')}</p>
+                {projecao.sem_preco.length > 0 && <p role="status" className="mt-3 p-3 rounded-xl bg-amber-50 text-amber-900 text-sm">Existem produtos sem preço de custo; os totais não incluem seus custos: {projecao.sem_preco.map(item => item.nome).join(', ')}.</p>}
+                {projecao.itens.length === 0 ? <p className="text-sm text-slate-500 mt-3">Nenhum item abaixo do mínimo.</p> : <div className="overflow-x-auto mt-3">
+                  <table className="w-full text-sm text-left">
+                    <thead><tr><th>Produto</th><th>Saldo</th><th>Mínimo</th><th>A repor</th><th>Custo unit.</th><th>Custo previsto</th></tr></thead>
+                    <tbody>{projecao.itens.map(item => <tr key={item.id} className="border-t border-slate-100">
+                      <td className="py-2">{item.nome}</td><td>{item.saldo_atual}</td><td>{item.estoque_minimo}</td><td>{item.quantidade_repor}</td><td>{item.valor_compra == null ? 'Não informado' : `R$ ${Number(item.valor_compra).toFixed(2).replace('.', ',')}`}</td><td>R$ {Number(item.custo_previsto).toFixed(2).replace('.', ',')}</td>
+                    </tr>)}</tbody>
+                  </table>
+                </div>}
+              </>}
+            </div>
             {/* Cards resumo do estoque */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-xs flex items-center justify-between">
@@ -177,6 +214,7 @@ export const RelatoriosView: React.FC = () => {
                     R$ {totalCustoEstoque.toFixed(2).replace('.', ',')}
                   </p>
                   <p className="text-[10px] sm:text-[11px] text-slate-400 mt-1">valor de custo investido</p>
+                  {projecao && projecao.sem_preco.length > 0 && <p className="text-xs text-amber-800 mt-1">Há produtos sem preço de custo; o total está incompleto.</p>}
                 </div>
                 <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                   <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6" />
@@ -245,9 +283,7 @@ export const RelatoriosView: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {inventario.map((item) => {
-                        const custoUnitario = item.saldo_atual > 0
-                          ? Number(item.custo_total_estoque) / item.saldo_atual
-                          : 0;
+                        const custoUnitario = item.valor_compra;
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                             <td className="px-4 sm:px-5 py-3">
@@ -268,7 +304,7 @@ export const RelatoriosView: React.FC = () => {
                             </td>
                             <td className="px-3 py-3 text-right hidden sm:table-cell">
                               <span className="text-xs text-slate-500">
-                                R$ {custoUnitario.toFixed(2).replace('.', ',')}
+                                {custoUnitario == null ? 'Não informado' : `R$ ${Number(custoUnitario).toFixed(2).replace('.', ',')}`}
                               </span>
                             </td>
                             <td className="px-3 py-3 text-right hidden sm:table-cell">

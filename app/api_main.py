@@ -26,6 +26,9 @@ from app.routers import (
     usuarios,
     organizacao,
     pessoas,
+    facilitadores,
+    atividades,
+    doacoes,
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -132,6 +135,9 @@ routers = [
     estoque.router,
     organizacao.router,
     pessoas.router,
+    facilitadores.router,
+    atividades.router,
+    doacoes.router,
 ]
 
 for r in routers:

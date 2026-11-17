@@ -21,24 +21,28 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
-import type { Agendamento, Evento, Pessoa, OrganizacaoConfig } from '../types';
+import type { Agendamento, Evento, Pessoa, OrganizacaoConfig, Facilitador, Atividade } from '../types';
 
 interface AgendamentosViewProps {
   activeEvento: Evento | null;
   onNavigateToCaixa?: () => void;
+  onRefreshState: () => Promise<void>;
 }
 
 export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   activeEvento,
   onNavigateToCaixa,
+  onRefreshState,
 }) => {
   // Configuração de terminologia da organização
   const [orgConfig, setOrgConfig] = useState<OrganizacaoConfig>({
-    tipo_organizacao: 'Terreiro de Umbanda / Centro Espírita',
-    termo_assistido: 'Consulente',
-    termo_assistido_plural: 'Consulentes',
-    termo_atendente: 'Médium / Cambone',
-    termo_servico: 'Passe / Consulta',
+    nome_organizacao: '',
+    tipo_organizacao: 'Organização',
+    termo_assistido: 'Pessoa',
+    termo_assistido_plural: 'Pessoas',
+    termo_atendente: 'Atendente',
+    termo_servico: 'Atendimento',
+    termo_atividade: 'Entidade / Serviço',
   });
 
   // Eventos disponíveis (abertos e agendados para o futuro)
@@ -69,13 +73,17 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
   const [formDocumento, setFormDocumento] = useState('');
   const [formPreferencial, setFormPreferencial] = useState(false);
   const [formServico, setFormServico] = useState('');
+  const [formFacilitadorId, setFormFacilitadorId] = useState<number | null>(null);
+  const [facilitadores, setFacilitadores] = useState<Facilitador[]>([]);
+  const [formAtividadeId, setFormAtividadeId] = useState<number | null>(null);
+  const [atividades, setAtividades] = useState<Atividade[]>([]);
   const [formObservacoes, setFormObservacoes] = useState('');
   const [formEventoAlvoId, setFormEventoAlvoId] = useState<number | null>(null);
 
   // Campos para criação de novo evento futuro no calendário
   const [novoEvNome, setNovoEvNome] = useState('');
   const [novoEvData, setNovoEvData] = useState('');
-  const [novoEvTipo, setNovoEvTipo] = useState('Gira / Culto / Atendimento');
+  const [novoEvTipo, setNovoEvTipo] = useState('Atendimento');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -92,11 +100,11 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       if (resp.data) {
         setOrgConfig(resp.data);
         if (!formServico) {
-          setFormServico(resp.data.termo_servico || 'Passe / Consulta');
+          setFormServico(resp.data.termo_servico || 'Atendimento');
         }
       }
     } catch {
-      console.warn('Usando vocabulário padrão da organização.');
+      showFeedback('error', 'Não foi possível carregar os termos da organização.');
     }
   };
 
@@ -148,6 +156,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       } else {
         setPreAgendados([]);
       }
+      if (filaResp.status === 'rejected' || preResp.status === 'rejected') {
+        showFeedback('error', 'Não foi possível carregar todos os atendimentos do evento.');
+      }
     } catch (err) {
       console.error('Erro ao buscar dados do evento:', err);
     } finally {
@@ -165,10 +176,30 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
     }
   };
 
+  const fetchFacilitadores = async () => {
+    try {
+      const resp = await apiClient.get('/facilitadores/', { params: { apenas_ativos: true } });
+      setFacilitadores(resp.data);
+    } catch {
+      showFeedback('error', 'Não foi possível carregar os atendentes.');
+    }
+  };
+
+  const fetchAtividades = async () => {
+    try {
+      const resp = await apiClient.get('/atividades/', { params: { apenas_ativos: true } });
+      setAtividades(resp.data);
+    } catch {
+      showFeedback('error', 'Não foi possível carregar os cadastros de atendimento.');
+    }
+  };
+
   useEffect(() => {
     fetchConfig();
     fetchEventos();
     fetchPessoas();
+    fetchFacilitadores();
+    fetchAtividades();
   }, []);
 
   useEffect(() => {
@@ -211,13 +242,15 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         documento: modoCadastro === 'novo' ? formDocumento.trim() : null,
         preferencial: formPreferencial,
         tipo_servico: formServico || orgConfig.termo_servico,
+        id_facilitador: formFacilitadorId,
+        id_atividade: formAtividadeId,
         observacoes: formObservacoes.trim() || null,
       };
 
       const resp = await apiClient.post('/agendamentos/acolher', payload);
       const senhaGerada = resp.data?.numero_senha || (formPreferencial ? 'P-01' : 'G-01');
 
-      showFeedback('success', `Senha ${senhaGerada} gerada para ${formNome || 'o acolhido'}!`);
+      showFeedback('success', `Senha ${senhaGerada} gerada para ${formNome || pessoasCadastradas.find(p => p.id === selectedPessoaId)?.nome || orgConfig.termo_assistido}!`);
 
       // Limpa formulário
       setFormNome('');
@@ -225,6 +258,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       setFormDocumento('');
       setFormObservacoes('');
       setFormPreferencial(false);
+      setFormFacilitadorId(null);
+      setFormAtividadeId(null);
+      setFormServico(orgConfig.termo_servico);
       setSelectedPessoaId(null);
       setIsPresencialModalOpen(false);
 
@@ -266,6 +302,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
         documento: modoCadastro === 'novo' ? formDocumento.trim() : null,
         preferencial: formPreferencial,
         tipo_servico: formServico || orgConfig.termo_servico,
+        id_facilitador: formFacilitadorId,
+        id_atividade: formAtividadeId,
         observacoes: formObservacoes.trim() || null,
       };
 
@@ -273,7 +311,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       const evObj = eventosDisponiveis.find((x) => x.id === eventoAlvo);
       showFeedback(
         'success',
-        `Pré-agendamento confirmado com sucesso para ${formNome || 'o acolhido'} no evento "${evObj?.nome || 'selecionado'}"!`
+        `Pré-agendamento confirmado com sucesso para ${formNome || pessoasCadastradas.find(p => p.id === selectedPessoaId)?.nome || orgConfig.termo_assistido} no evento "${evObj?.nome || 'selecionado'}"!`
       );
 
       // Limpa formulário
@@ -282,6 +320,9 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       setFormDocumento('');
       setFormObservacoes('');
       setFormPreferencial(false);
+      setFormFacilitadorId(null);
+      setFormAtividadeId(null);
+      setFormServico(orgConfig.termo_servico);
       setSelectedPessoaId(null);
       setIsPreAgendarModalOpen(false);
 
@@ -346,9 +387,13 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
   // Iniciar / Abrir um evento agendado
   const handleIniciarEvento = async (idEvento: number) => {
-    if (!confirm('Deseja iniciar e abrir este evento para a operação de hoje?')) return;
+    const aviso = activeEvento && activeEvento.id !== idEvento
+      ? `Iniciar este evento fechará "${activeEvento.nome}". Continuar?`
+      : 'Deseja iniciar e abrir este evento para a operação de hoje?';
+    if (!confirm(aviso)) return;
     try {
       await apiClient.post(`/eventos/${idEvento}/iniciar`);
+      await onRefreshState();
       showFeedback('success', 'Evento aberto para operação com sucesso!');
       await fetchEventos();
       setSelectedEventoId(idEvento);
@@ -395,7 +440,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
           item.id === id ? { ...item, status: 'Aguardando', compareceu: 'Pendente' } : item
         )
       );
-      showFeedback('success', 'O acolhido foi reativado e voltou para a fila ativa!');
+      showFeedback('success', 'Atendimento reativado e retornado à fila ativa!');
     } catch {
       alert('Falha ao reativar ausente.');
     } finally {
@@ -409,6 +454,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
     try {
       await apiClient.put('/organizacao/config', dataToSend);
       setOrgConfig(dataToSend);
+      setFormServico(dataToSend.termo_servico);
       showFeedback('success', 'Vocabulário da organização salvo com sucesso!');
     } catch {
       alert('Erro ao salvar parâmetros da organização.');
@@ -423,6 +469,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       assistidos: 'Consulentes',
       atendente: 'Médium / Cambone',
       servico: 'Passe / Consulta',
+      atividade: 'Entidade',
       icon: '🕊️',
     },
     {
@@ -431,6 +478,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       assistidos: 'Fiéis',
       atendente: 'Padre / Diácono',
       servico: 'Confissão / Escuta Pastoral',
+      atividade: 'Serviço',
       icon: '⛪',
     },
     {
@@ -439,6 +487,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       assistidos: 'Irmãos / Visitantes',
       atendente: 'Pastor / Ministro',
       servico: 'Oração / Aconselhamento',
+      atividade: 'Serviço',
       icon: '📖',
     },
     {
@@ -447,6 +496,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       assistidos: 'Acolhidos',
       atendente: 'Assistente Social',
       servico: 'Triagem / Acolhimento & Refeição',
+      atividade: 'Serviço',
       icon: '🏠',
     },
     {
@@ -455,6 +505,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
       assistidos: 'Pacientes',
       atendente: 'Terapeuta / Psicólogo',
       servico: 'Sessão / Terapia Integrativa',
+      atividade: 'Serviço',
       icon: '🩺',
     },
   ];
@@ -534,7 +585,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <button
               onClick={() => setIsPreAgendarModalOpen(true)}
               className="h-10 px-3.5 bg-indigo-50 hover:bg-indigo-100 active:scale-95 text-indigo-900 font-bold text-xs sm:text-sm rounded-xl border border-indigo-200 transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
-              title="Agendar um consulente com antecedência para uma data futura"
+              title={`Agendar ${orgConfig.termo_assistido.toLowerCase()} com antecedência`}
             >
               <Calendar className="w-4 h-4 text-indigo-600" />
               <span>📅 Pré-Agendar com Antecedência</span>
@@ -575,7 +626,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
                 <Calendar className="w-4 h-4 text-emerald-600" />
-                Evento / Gira Selecionada:
+                Evento selecionado:
               </span>
             </div>
 
@@ -628,7 +679,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
             <button
               onClick={() => setIsNovoEventoModalOpen(true)}
               className="h-9 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 shrink-0"
-              title="Cadastrar uma nova data no calendário (ex: Gira da próxima semana)"
+              title="Cadastrar uma nova data no calendário"
             >
               <CalendarPlus className="w-4 h-4 text-slate-500" />
               <span>+ Nova Data / Evento</span>
@@ -817,6 +868,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                               </div>
                               <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
                                 <span>{item.tipo_servico || orgConfig.termo_servico}</span>
+                                {item.facilitador && <span> · {item.facilitador}</span>}
+                                {item.atividade && item.atividade !== item.tipo_servico && <span> · {item.atividade}</span>}
                                 {item.telefone && (
                                   <>
                                     <span>•</span>
@@ -921,6 +974,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                               </div>
                               <p className="text-xs text-slate-500 font-medium mt-0.5 flex items-center gap-1.5">
                                 <span>{item.tipo_servico || orgConfig.termo_servico}</span>
+                                {item.facilitador && <span> · {item.facilitador}</span>}
+                                {item.atividade && item.atividade !== item.tipo_servico && <span> · {item.atividade}</span>}
                                 {item.telefone && (
                                   <>
                                     <span>•</span>
@@ -1037,6 +1092,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
 
                           <p className="text-xs text-slate-600 mt-1 flex items-center gap-2">
                             <span>{item.tipo_servico || orgConfig.termo_servico}</span>
+                            {item.facilitador && <span> · {item.facilitador}</span>}
+                            {item.atividade && item.atividade !== item.tipo_servico && <span> · {item.atividade}</span>}
                             {item.telefone && (
                               <>
                                 <span>&bull;</span>
@@ -1066,7 +1123,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                       </span>
 
                       <button
-                        onClick={() => handleCheckin(item.id, item.pessoa || 'o consulente')}
+                        onClick={() => handleCheckin(item.id, item.pessoa || orgConfig.termo_assistido)}
                         disabled={updatingId === item.id}
                         className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5"
                       >
@@ -1112,6 +1169,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                           <div>
                             <h4 className="font-black text-slate-900 text-sm">{item.pessoa}</h4>
                             <p className="text-xs text-slate-500">{item.tipo_servico || orgConfig.termo_servico}</p>
+                            {item.facilitador && <p className="text-xs text-slate-500">{item.facilitador}</p>}
+                            {item.atividade && item.atividade !== item.tipo_servico && <p className="text-xs text-slate-500">{item.atividade}</p>}
                           </div>
                         </div>
                         <span className="text-[10px] uppercase font-extrabold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-md">
@@ -1161,6 +1220,8 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                     </div>
                     <h4 className="font-bold text-slate-900 text-sm mt-2 truncate">{item.pessoa}</h4>
                     <p className="text-xs text-slate-500 mt-0.5">{item.tipo_servico || orgConfig.termo_servico}</p>
+                    {item.facilitador && <p className="text-xs text-slate-500">{item.facilitador}</p>}
+                    {item.atividade && item.atividade !== item.tipo_servico && <p className="text-xs text-slate-500">{item.atividade}</p>}
                     <p className="text-[10px] text-slate-400 mt-2">
                       Chegada: {new Date(item.data_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} &bull; #{item.ordem_chegada}º
                     </p>
@@ -1178,7 +1239,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               <div>
                 <h3 className="font-black text-slate-900 text-lg flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-emerald-600" />
-                  Adaptação da Entidade / Vocabulário Customizado
+                  Configuração da Organização / Vocabulário
                 </h3>
                 <p className="text-xs sm:text-sm text-slate-500 font-medium mt-1">
                   O Unython se adapta ao seu contexto social ou espiritual. Escolha um modelo pronto ou personalize cada termo livremente.
@@ -1202,6 +1263,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                             termo_assistido_plural: p.assistidos,
                             termo_atendente: p.atendente,
                             termo_servico: p.servico,
+                            termo_atividade: p.atividade,
                           });
                         }}
                         className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
@@ -1283,6 +1345,10 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                     />
                   </div>
 
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Nome para o cadastro de entidade ou serviço</label>
+                    <input type="text" required minLength={2} maxLength={50} placeholder="Ex: Entidade, Serviço" value={orgConfig.termo_atividade} onChange={(e) => setOrgConfig({ ...orgConfig, termo_atividade: e.target.value })} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white" />
+                  </div>
                   <div className="sm:col-span-2">
                     <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                       Termo Padrão do Serviço / Atendimento
@@ -1459,6 +1525,20 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{orgConfig.termo_atendente}</label>
+                <select aria-label={orgConfig.termo_atendente} value={formFacilitadorId ?? ''} onChange={(e) => setFormFacilitadorId(e.target.value ? Number(e.target.value) : null)} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                  <option value="">Não atribuído</option>
+                  {facilitadores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{orgConfig.termo_atividade}</label>
+                <select aria-label={orgConfig.termo_atividade} value={formAtividadeId ?? ''} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; setFormAtividadeId(id); setFormServico(atividades.find(a => a.id === id)?.nome || orgConfig.termo_servico); }} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                  <option value="">Não atribuído</option>
+                  {atividades.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Atendimento Solicitado</label>
                 <input
                   type="text"
@@ -1527,7 +1607,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               {/* Seleção do Evento Futuro */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                  Selecione o Evento / Gira Futura *
+                  Selecione o evento futuro *
                 </label>
                 <select
                   value={formEventoAlvoId || selectedEventoId || ''}
@@ -1646,6 +1726,20 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{orgConfig.termo_atendente}</label>
+                <select aria-label={orgConfig.termo_atendente} value={formFacilitadorId ?? ''} onChange={(e) => setFormFacilitadorId(e.target.value ? Number(e.target.value) : null)} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                  <option value="">Não atribuído</option>
+                  {facilitadores.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">{orgConfig.termo_atividade}</label>
+                <select aria-label={orgConfig.termo_atividade} value={formAtividadeId ?? ''} onChange={(e) => { const id = e.target.value ? Number(e.target.value) : null; setFormAtividadeId(id); setFormServico(atividades.find(a => a.id === id)?.nome || orgConfig.termo_servico); }} className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm">
+                  <option value="">Não atribuído</option>
+                  {atividades.map(a => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                </select>
+              </div>
+              <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase mb-1">Atendimento Desejado</label>
                 <input
                   type="text"
@@ -1715,7 +1809,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                   required
                   value={novoEvNome}
                   onChange={(e) => setNovoEvNome(e.target.value)}
-                  placeholder="Ex: Gira de Marinheiro, Culto de Cura, Bazar Beneficente"
+                  placeholder="Ex: Encontro, atendimento, evento beneficente"
                   className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
                 />
               </div>
@@ -1737,7 +1831,7 @@ export const AgendamentosView: React.FC<AgendamentosViewProps> = ({
                   type="text"
                   value={novoEvTipo}
                   onChange={(e) => setNovoEvTipo(e.target.value)}
-                  placeholder="Ex: Gira, Culto, Passe, Acolhimento"
+                  placeholder="Ex: Encontro, atendimento, acolhimento"
                   className="w-full h-11 px-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium focus:bg-white"
                 />
               </div>

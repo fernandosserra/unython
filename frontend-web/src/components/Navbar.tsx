@@ -12,8 +12,8 @@ import { useAuthStore } from '../store/useAuthStore';
 import type { Evento, MovimentoCaixa } from '../types';
 
 interface NavbarProps {
-  currentTab: 'pdv' | 'agendamentos' | 'caixa' | 'admin';
-  setCurrentTab: (tab: 'pdv' | 'agendamentos' | 'caixa' | 'admin') => void;
+  currentTab: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes';
+  setCurrentTab: (tab: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes') => void;
   activeEvento: Evento | null;
   activeMovimento: MovimentoCaixa | null;
   onOpenMobileModal: () => void;
@@ -30,10 +30,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 }) => {
   const { user, logout } = useAuthStore();
 
-  const navItems: { id: 'pdv' | 'agendamentos' | 'caixa' | 'admin'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  const navItems: { id: 'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes'; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'pdv', label: 'PDV / Vendas', icon: ShoppingBag },
     { id: 'agendamentos', label: 'Atendimentos', icon: Users },
     { id: 'caixa', label: 'Caixa', icon: Wallet },
+    { id: 'doacoes', label: 'Doações', icon: HeartHandshake },
     { id: 'admin', label: 'Administração', icon: Settings },
   ];
 

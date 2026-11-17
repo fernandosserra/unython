@@ -18,10 +18,26 @@ export interface Categoria {
 export interface Item {
   id: number;
   nome: string;
-  valor_compra: number;
+  valor_compra: number | null;
   valor_venda: number;
   id_categoria?: number;
   status: string;
+  estoque_minimo: number;
+}
+
+export interface Facilitador {
+  id: number;
+  nome: string;
+  especialidade?: string | null;
+  observacoes?: string | null;
+  status: 'Ativo' | 'Inativo';
+}
+
+export interface Atividade {
+  id: number;
+  nome: string;
+  descricao?: string | null;
+  status: 'Ativo' | 'Inativo';
 }
 
 export interface Evento {
@@ -69,6 +85,8 @@ export interface Agendamento {
   id_evento: number;
   id_facilitador?: number;
   facilitador?: string;
+  id_atividade?: number | null;
+  atividade?: string | null;
   data_hora: string;
   tipo_servico: string;
   status: 'Aguardando' | 'Chamado' | 'Atendido' | 'Ausente' | string;
@@ -86,6 +104,7 @@ export interface OrganizacaoConfig {
   termo_assistido_plural: string;
   termo_atendente: string;
   termo_servico: string;
+  termo_atividade: string;
 }
 
 export interface CartItem {

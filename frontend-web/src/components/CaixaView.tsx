@@ -28,7 +28,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
   const [selectedCaixaId, setSelectedCaixaId] = useState<number | null>(null);
   const [valorAbertura, setValorAbertura] = useState<number>(50);
   const [nomeNovoEvento, setNomeNovoEvento] = useState('');
-  const [tipoNovoEvento, setTipoNovoEvento] = useState('Feirinha / Culto');
+  const [tipoNovoEvento, setTipoNovoEvento] = useState('Atendimento');
   const [nomeNovoCaixa, setNomeNovoCaixa] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -232,7 +232,7 @@ export const CaixaView: React.FC<CaixaViewProps> = ({
                       type="text"
                       value={tipoNovoEvento}
                       onChange={(e) => setTipoNovoEvento(e.target.value)}
-                      placeholder="Ex: Feirinha, Bazar, Culto"
+                      placeholder="Ex: Encontro, atendimento, evento beneficente"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500 font-medium"
                     />
                   </div>

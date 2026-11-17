@@ -86,6 +86,33 @@ def get_relatorio_gerencial(
 # 4. ENDPOINT: INVENTÁRIO / RELATÓRIO DE ESTOQUE
 # ------------------------------------------------------------------
 
+@router.get("/projecao-estoque")
+def get_projecao_estoque(db: DBDependency):
+    query = """
+    SELECT id, nome, saldo_atual, estoque_minimo, valor_compra,
+           estoque_minimo - saldo_atual AS quantidade_repor,
+           (estoque_minimo - saldo_atual) * COALESCE(valor_compra, 0) AS custo_previsto
+    FROM (
+        SELECT i.id, i.nome, i.estoque_minimo, i.valor_compra,
+               COALESCE(SUM(CASE WHEN e.tipo_movimento = 'Entrada'
+                                 THEN e.quantidade ELSE -e.quantidade END), 0) AS saldo_atual
+        FROM itens i LEFT JOIN estoque e ON e.id_item = i.id
+        WHERE i.status = 'Ativo'
+        GROUP BY i.id, i.nome, i.estoque_minimo, i.valor_compra
+    ) saldos
+    WHERE saldo_atual < estoque_minimo
+    ORDER BY nome, id
+    """
+    columns, rows = db.execute_query(query, fetch_all=True)
+    itens = [dict(zip(columns, row)) for row in rows]
+    columns, rows = db.execute_query(
+        "SELECT id, nome FROM itens WHERE status = 'Ativo' AND valor_compra IS NULL ORDER BY nome, id",
+        fetch_all=True,
+    )
+    return {"itens": itens, "total_previsto": sum((item["custo_previsto"] for item in itens), Decimal("0")),
+            "sem_preco": [dict(zip(columns, row)) for row in rows]}
+
+
 @router.get("/inventario", response_model=List[InventarioResponse], status_code=status.HTTP_200_OK)
 def get_inventario(db: DBDependency):
     """
@@ -96,6 +123,7 @@ def get_inventario(db: DBDependency):
     SELECT 
         i.id,
         i.nome,
+        i.valor_compra,
         COALESCE(
             SUM(CASE WHEN e.tipo_movimento = 'Entrada' THEN e.quantidade ELSE -e.quantidade END),
             0
@@ -131,6 +159,7 @@ def get_inventario(db: DBDependency):
                 saldo_atual=int(data.get('saldo_atual', 0) or 0),
                 custo_total_estoque=Decimal(str(data.get('custo_total_estoque', 0) or 0)),
                 valor_venda=Decimal(str(data.get('valor_venda', 0) or 0)),
+                valor_compra=data['valor_compra'],
             ))
         return inventario
     except Exception as e:

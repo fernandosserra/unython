@@ -31,7 +31,7 @@ export const LoginView: React.FC = () => {
             </div>
             <h1 className="text-3xl font-extrabold text-slate-900 tracking-tight">Unython</h1>
             <p className="text-sm font-medium text-emerald-700 mt-1">Plataforma de Impacto & Gestão para ONGs</p>
-            <p className="text-xs text-slate-500 mt-0.5">Operações ágeis de feirinhas, cultos e atendimentos</p>
+            <p className="text-xs text-slate-500 mt-0.5">Gestão de eventos, serviços e atendimentos</p>
           </div>
 
           {error && (

@@ -17,15 +17,20 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../store/useAuthStore';
 import { ConnectMobileModal } from './ConnectMobileModal';
 import { RelatoriosView } from './RelatoriosView';
+import { CalendarioView } from './CalendarioView';
+import { FacilitadoresView } from './FacilitadoresView';
+import { AtividadesView } from './AtividadesView';
 import type { Categoria, Item, Usuario, Evento } from '../types';
 
 interface AdminViewProps {
   activeEvento: Evento | null;
+  onRefreshState: () => Promise<void>;
 }
 
-export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
+export const AdminView: React.FC<AdminViewProps> = ({ activeEvento, onRefreshState }) => {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'produtos' | 'estoque' | 'usuarios' | 'relatorios'>('produtos');
+  const [activeTab, setActiveTab] = useState<'produtos' | 'estoque' | 'usuarios' | 'relatorios' | 'calendario' | 'facilitadores' | 'atividades'>('produtos');
+  const [termos, setTermos] = useState({ termo_atendente: 'Atendente', termo_atividade: 'Entidade / Serviço' });
 
   // Estados de Produtos e Categorias
   const [itens, setItens] = useState<Item[]>([]);
@@ -35,8 +40,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
   // Formulário Produto
   const [nomeProduto, setNomeProduto] = useState('');
   const [idCategoriaProduto, setIdCategoriaProduto] = useState<number | ''>('');
-  const [valorCompra, setValorCompra] = useState<number>(0);
+  const [valorCompra, setValorCompra] = useState<number | ''>('');
   const [valorVenda, setValorVenda] = useState<number>(0);
+  const [estoqueMinimo, setEstoqueMinimo] = useState(0);
+  const [editItem, setEditItem] = useState<Item | null>(null);
 
   // Formulário Categoria
   const [nomeCategoria, setNomeCategoria] = useState('');
@@ -91,36 +98,44 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
   };
 
 
-  useEffect(() => {
-    loadCatalogData();
-    loadUsers();
-  }, []);
-
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
     setTimeout(() => setFeedback(null), 4000);
   };
 
+  useEffect(() => {
+    loadCatalogData();
+    loadUsers();
+    apiClient.get('/organizacao/config').then(res => setTermos(res.data)).catch(() => {
+      showFeedback('error', 'Não foi possível carregar os termos da organização.');
+    });
+  }, []);
+
   // Salvar Novo Produto
   const handleSaveProduto = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nomeProduto || !idCategoriaProduto) {
+    if (!nomeProduto.trim() || (!idCategoriaProduto && !editItem)) {
       showFeedback('error', 'Preencha o nome e selecione uma categoria.');
       return;
     }
     setIsLoading(true);
     try {
-      await apiClient.post('/catalogo/itens', {
+      const payload = {
         nome: nomeProduto,
-        id_categoria: Number(idCategoriaProduto),
-        valor_compra: Number(valorCompra),
+        id_categoria: idCategoriaProduto === '' ? null : Number(idCategoriaProduto),
+        valor_compra: valorCompra === '' ? null : Number(valorCompra),
         valor_venda: Number(valorVenda),
-        status: 'Ativo',
-      });
+        estoque_minimo: estoqueMinimo,
+        status: editItem?.status || 'Ativo',
+      };
+      if (editItem) await apiClient.put(`/catalogo/itens/${editItem.id}`, payload);
+      else await apiClient.post('/catalogo/itens', payload);
       showFeedback('success', `Produto "${nomeProduto}" cadastrado com sucesso!`);
       setNomeProduto('');
-      setValorCompra(0);
+      setValorCompra('');
       setValorVenda(0);
+      setEstoqueMinimo(0);
+      setEditItem(null);
       await loadCatalogData();
     } catch (err: any) {
       showFeedback('error', err.response?.data?.detail || 'Erro ao cadastrar produto.');
@@ -254,6 +269,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
 
         {/* Barra de Sub-abas */}
         <div className="flex items-center gap-2 bg-white p-1.5 rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
+          <button onClick={() => setActiveTab('calendario')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'calendario' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>Calendário & Eventos</button>
+          <button onClick={() => setActiveTab('facilitadores')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'facilitadores' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>{termos.termo_atendente}</button>
+          <button onClick={() => setActiveTab('atividades')} className={`h-10 px-4 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${activeTab === 'atividades' ? 'bg-slate-900 text-white' : 'text-slate-600'}`}>{termos.termo_atividade}</button>
           <button
             onClick={() => setActiveTab('produtos')}
             className={`h-10 px-4 inline-flex items-center gap-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
@@ -303,7 +321,7 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
               <div className="bg-white p-6 rounded-3xl border border-slate-200/80 shadow-xs">
                 <div className="flex items-center gap-2 mb-4 pb-3 border-b border-slate-100">
                   <Package className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-black text-slate-900 text-base">Cadastrar Novo Produto</h3>
+                  <h3 className="font-black text-slate-900 text-base">{editItem ? 'Editar Produto' : 'Cadastrar Novo Produto'}</h3>
                 </div>
 
                 <form onSubmit={handleSaveProduto} className="space-y-4">
@@ -327,9 +345,10 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
                     </label>
                     <select
                       value={idCategoriaProduto}
-                      onChange={(e) => setIdCategoriaProduto(Number(e.target.value))}
+                      onChange={(e) => setIdCategoriaProduto(e.target.value ? Number(e.target.value) : '')}
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
                     >
+                      <option value="">Sem categoria</option>
                       {categorias.map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.nome}
@@ -341,14 +360,14 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                        Preço Custo (R$)
+                        Preço Custo (R$) — opcional
                       </label>
                       <input
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         min="0"
                         value={valorCompra}
-                        onChange={(e) => setValorCompra(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setValorCompra(e.target.value === '' ? '' : Number(e.target.value))}
                         className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500 font-medium"
                       />
                     </div>
@@ -367,14 +386,20 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1" htmlFor="estoque-minimo">Estoque mínimo</label>
+                    <input id="estoque-minimo" type="number" min="0" step="1" required value={estoqueMinimo} onChange={(e) => setEstoqueMinimo(Number(e.target.value))} className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm" />
+                  </div>
+
                   <button
                     type="submit"
                     disabled={isLoading}
                     className="w-full h-11 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white rounded-xl text-xs sm:text-sm font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>Salvar Produto no Catálogo</span>
+                    <span>{editItem ? 'Salvar alterações' : 'Salvar Produto no Catálogo'}</span>
                   </button>
+                  {editItem && <button type="button" onClick={() => { setEditItem(null); setNomeProduto(''); setValorCompra(''); setValorVenda(0); setEstoqueMinimo(0); }} className="text-sm text-slate-600">Cancelar edição</button>}
                 </form>
               </div>
 
@@ -469,7 +494,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
                       <th className="py-2.5 px-3">Item</th>
                       <th className="py-2.5 px-3">Custo</th>
                       <th className="py-2.5 px-3">Preço Venda</th>
+                      <th className="py-2.5 px-3">Mínimo</th>
                       <th className="py-2.5 px-3">Status</th>
+                      <th className="py-2.5 px-3">Ações</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -477,16 +504,18 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
                       <tr key={p.id} className="hover:bg-slate-50/50">
                         <td className="py-2.5 px-3 font-bold text-slate-800">{p.nome}</td>
                         <td className="py-2.5 px-3 text-slate-500">
-                          R$ {Number(p.valor_compra).toFixed(2).replace('.', ',')}
+                          {p.valor_compra == null ? 'Não informado' : `R$ ${Number(p.valor_compra).toFixed(2).replace('.', ',')}`}
                         </td>
                         <td className="py-2.5 px-3 font-bold text-emerald-700">
                           R$ {Number(p.valor_venda).toFixed(2).replace('.', ',')}
                         </td>
+                        <td className="py-2.5 px-3">{p.estoque_minimo}</td>
                         <td className="py-2.5 px-3">
                           <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800">
                             {p.status}
                           </span>
                         </td>
+                        <td className="py-2.5 px-3"><button type="button" className="text-emerald-700 font-bold" onClick={() => { setEditItem(p); setNomeProduto(p.nome); setIdCategoriaProduto(p.id_categoria ?? ''); setValorCompra(p.valor_compra == null ? '' : Number(p.valor_compra)); setValorVenda(Number(p.valor_venda)); setEstoqueMinimo(p.estoque_minimo); }}>Editar</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -693,6 +722,9 @@ export const AdminView: React.FC<AdminViewProps> = ({ activeEvento }) => {
         {activeTab === 'relatorios' && (
           <RelatoriosView />
         )}
+        {activeTab === 'calendario' && <CalendarioView activeEvento={activeEvento} onRefreshState={onRefreshState} />}
+        {activeTab === 'facilitadores' && <FacilitadoresView />}
+        {activeTab === 'atividades' && <AtividadesView termo={termos.termo_atividade} />}
       </div>
 
       {/* Modal QR Code Celular */}

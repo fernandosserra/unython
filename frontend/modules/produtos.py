@@ -32,7 +32,8 @@ def produtos_page(api_base_url: str):
     selected_cat = cat_options.get(selected_cat_label) if selected_cat_label else None
     with st.form("form_produto"):
         nome_item = st.text_input("Nome do produto")
-        valor_compra = st.number_input("Valor de compra", min_value=0.0, value=0.0, step=0.5)
+        informar_custo = st.checkbox("Informar preço de custo")
+        valor_compra = st.number_input("Valor de compra", min_value=0.0, value=0.0, step=0.5, disabled=not informar_custo)
         valor_venda = st.number_input("Valor de venda", min_value=0.0, value=0.0, step=0.5)
         submitted = st.form_submit_button("Salvar produto")
         if submitted:
@@ -41,7 +42,7 @@ def produtos_page(api_base_url: str):
             else:
                 payload = {
                     "nome": nome_item,
-                    "valor_compra": valor_compra,
+                    "valor_compra": valor_compra if informar_custo else None,
                     "valor_venda": valor_venda,
                     "id_categoria": selected_cat,
                     "status": "Ativo",

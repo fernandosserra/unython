@@ -6,13 +6,14 @@ import { PDVView } from './components/PDVView';
 import { AgendamentosView } from './components/AgendamentosView';
 import { CaixaView } from './components/CaixaView';
 import { AdminView } from './components/AdminView';
+import { DoacoesView } from './components/DoacoesView';
 import { ConnectMobileModal } from './components/ConnectMobileModal';
 import { apiClient } from './api/client';
-import type { Evento, MovimentoCaixa, OrganizacaoConfig } from './types';
+import type { Evento, MovimentoCaixa } from './types';
 
 export function App() {
   const { isAuthenticated, logout } = useAuthStore();
-  const [currentTab, setCurrentTab] = useState<'pdv' | 'agendamentos' | 'caixa' | 'admin'>('pdv');
+  const [currentTab, setCurrentTab] = useState<'pdv' | 'agendamentos' | 'caixa' | 'admin' | 'doacoes'>('pdv');
   const [activeEvento, setActiveEvento] = useState<Evento | null>(null);
   const [activeMovimento, setActiveMovimento] = useState<MovimentoCaixa | null>(null);
   const [isMobileModalOpen, setIsMobileModalOpen] = useState(false);
@@ -110,6 +111,7 @@ export function App() {
           <AgendamentosView
             activeEvento={activeEvento}
             onNavigateToCaixa={() => setCurrentTab('caixa')}
+            onRefreshState={refreshActiveSession}
           />
         )}
 
@@ -122,8 +124,9 @@ export function App() {
         )}
 
         {currentTab === 'admin' && (
-          <AdminView activeEvento={activeEvento} />
+          <AdminView activeEvento={activeEvento} onRefreshState={refreshActiveSession} />
         )}
+        {currentTab === 'doacoes' && <DoacoesView />}
       </main>
 
       {/* Rodapé – Branding & Licença */}

@@ -16,18 +16,15 @@ class OrganizacaoService:
     def obter_configuracoes(self) -> OrganizacaoConfig:
         """Obtém as configurações ativas da organização."""
         query = """
-            SELECT id, nome_organizacao, tipo_organizacao, termo_assistido, termo_assistido_plural, termo_atendente, termo_servico
+            SELECT id, nome_organizacao, tipo_organizacao, termo_assistido, termo_assistido_plural, termo_atendente, termo_servico, termo_atividade
             FROM organizacao_config
             WHERE id = 1
             LIMIT 1;
         """
-        try:
-            columns, results = self.db.execute_query(query, fetch_one=True)
-            if results:
-                data = dict(zip(columns, results))
-                return OrganizacaoConfig(**data)
-        except Exception as e:
-            print(f"[organizacao] Erro ao obter configurações: {e}")
+        columns, results = self.db.execute_query(query, fetch_one=True)
+        if results:
+            data = dict(zip(columns, results))
+            return OrganizacaoConfig(**data)
 
         # Retorna padrão caso não encontre
         return OrganizacaoConfig()
@@ -40,19 +37,21 @@ class OrganizacaoService:
         termo_assistido_plural: str,
         termo_atendente: str,
         termo_servico: str,
+        termo_atividade: str = "Entidade / Serviço",
     ) -> bool:
         """Atualiza ou insere as configurações da organização no registro principal (id=1)."""
         query = """
             INSERT INTO organizacao_config 
-                (id, nome_organizacao, tipo_organizacao, termo_assistido, termo_assistido_plural, termo_atendente, termo_servico)
-            VALUES (1, %s, %s, %s, %s, %s, %s)
+                (id, nome_organizacao, tipo_organizacao, termo_assistido, termo_assistido_plural, termo_atendente, termo_servico, termo_atividade)
+            VALUES (1, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (id) DO UPDATE SET
                 nome_organizacao = EXCLUDED.nome_organizacao,
                 tipo_organizacao = EXCLUDED.tipo_organizacao,
                 termo_assistido = EXCLUDED.termo_assistido,
                 termo_assistido_plural = EXCLUDED.termo_assistido_plural,
                 termo_atendente = EXCLUDED.termo_atendente,
-                termo_servico = EXCLUDED.termo_servico;
+                termo_servico = EXCLUDED.termo_servico,
+                termo_atividade = EXCLUDED.termo_atividade;
         """
         params = (
             nome_organizacao,
@@ -61,5 +60,6 @@ class OrganizacaoService:
             termo_assistido_plural,
             termo_atendente,
             termo_servico,
+            termo_atividade,
         )
         return bool(self.db.execute_query(query, params, commit=True))

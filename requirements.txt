@@ -30,3 +30,4 @@ google-auth-httplib2
 
 # Testes e Qualidade
 pytest
+httpx

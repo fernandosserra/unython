@@ -19,8 +19,8 @@ class AgendamentoService:
         """Registra agendamento legado direto."""
         query = """
             INSERT INTO agendamentos 
-            (id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento, compareceu, numero_senha, preferencial, ordem_chegada, observacoes) 
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
+            (id_pessoa, id_facilitador, data_hora, tipo_servico, status, id_evento, compareceu, numero_senha, preferencial, ordem_chegada, observacoes, id_atividade)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
         """
         params = (
             agendamento.id_pessoa,
@@ -34,6 +34,7 @@ class AgendamentoService:
             bool(agendamento.preferencial),
             agendamento.ordem_chegada or 1,
             agendamento.observacoes,
+            agendamento.id_atividade,
         )
         return self.db.execute_query(query, params, commit=True)
 
@@ -42,9 +43,10 @@ class AgendamentoService:
         id_evento: int,
         id_pessoa: int,
         preferencial: bool = False,
-        tipo_servico: str = "Passe / Consulta",
+        tipo_servico: str = "Atendimento",
         id_facilitador: Optional[int] = None,
         observacoes: Optional[str] = None,
+        id_atividade: Optional[int] = None,
     ) -> Optional[Dict[str, Any]]:
         """
         Cadastra o acolhido no evento ativo, gerando automaticamente a senha cronológica
@@ -72,6 +74,7 @@ class AgendamentoService:
             tipo_servico=tipo_servico or "Atendimento",
             id_evento=id_evento,
             id_facilitador=id_facilitador,
+            id_atividade=id_atividade,
             data_hora=datetime.now(),
             status="Aguardando",
             compareceu="Pendente",
@@ -98,9 +101,10 @@ class AgendamentoService:
         id_evento: int,
         id_pessoa: int,
         preferencial: bool = False,
-        tipo_servico: str = "Passe / Consulta",
+        tipo_servico: str = "Atendimento",
         id_facilitador: Optional[int] = None,
         observacoes: Optional[str] = None,
+        id_atividade: Optional[int] = None,
     ) -> Optional[int]:
         """
         Registra um agendamento com antecedência para um evento futuro.
@@ -111,6 +115,7 @@ class AgendamentoService:
             tipo_servico=tipo_servico or "Atendimento",
             id_evento=id_evento,
             id_facilitador=id_facilitador,
+            id_atividade=id_atividade,
             data_hora=datetime.now(),
             status="PreAgendado",
             compareceu="Pendente",
@@ -188,6 +193,8 @@ class AgendamentoService:
                 a.id_evento,
                 a.id_facilitador,
                 u.nome AS facilitador,
+                a.id_atividade,
+                at.nome AS atividade,
                 a.data_hora,
                 a.tipo_servico,
                 a.status,
@@ -201,21 +208,17 @@ class AgendamentoService:
             INNER JOIN 
                 pessoas p ON a.id_pessoa = p.id
             LEFT JOIN 
-                usuarios u ON a.id_facilitador = u.id
+                facilitadores u ON a.id_facilitador = u.id
+            LEFT JOIN
+                atividades_atendimento at ON a.id_atividade = at.id
             WHERE 
                 a.id_evento = %s 
                 AND (a.status = 'PreAgendado' OR a.numero_senha IS NULL)
             ORDER BY 
                 a.id ASC
         """
-        try:
-            columns, results = self.db.execute_query(query, (id_evento,), fetch_all=True)
-            if results:
-                return [dict(zip(columns, row)) for row in results]
-            return []
-        except Exception as e:
-            print(f"[agendamento] Erro ao listar pré-agendados do evento {id_evento}: {e}")
-            return []
+        columns, results = self.db.execute_query(query, (id_evento,), fetch_all=True)
+        return [dict(zip(columns, row)) for row in results]
 
     def listar_fila_evento(self, id_evento: int) -> List[Dict[str, Any]]:
         """
@@ -231,6 +234,8 @@ class AgendamentoService:
                 a.id_evento,
                 a.id_facilitador,
                 u.nome AS facilitador,
+                a.id_atividade,
+                at.nome AS atividade,
                 a.data_hora,
                 a.tipo_servico,
                 a.status,
@@ -244,7 +249,9 @@ class AgendamentoService:
             INNER JOIN 
                 pessoas p ON a.id_pessoa = p.id
             LEFT JOIN 
-                usuarios u ON a.id_facilitador = u.id
+                facilitadores u ON a.id_facilitador = u.id
+            LEFT JOIN
+                atividades_atendimento at ON a.id_atividade = at.id
             WHERE 
                 a.id_evento = %s
                 AND a.numero_senha IS NOT NULL
@@ -252,14 +259,8 @@ class AgendamentoService:
             ORDER BY 
                 a.ordem_chegada ASC, a.data_hora ASC
         """
-        try:
-            columns, results = self.db.execute_query(query, (id_evento,), fetch_all=True)
-            if results:
-                return [dict(zip(columns, row)) for row in results]
-            return []
-        except Exception as e:
-            print(f"[agendamento] Erro ao listar fila do evento {id_evento}: {e}")
-            return []
+        columns, results = self.db.execute_query(query, (id_evento,), fetch_all=True)
+        return [dict(zip(columns, row)) for row in results]
 
     def atualizar_status(self, id_agendamento: int, novo_status: str) -> bool:
         """

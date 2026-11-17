@@ -1,6 +1,7 @@
 # src/modules/item.py
 
 from typing import List, Optional
+from decimal import Decimal
 from src.utils.database_manager import DatabaseManager
 from src.utils.models import Item # Assumindo que Item agora tem 'id_categoria'
 
@@ -24,17 +25,18 @@ class ItemService:
                 item.valor_compra, 
                 item.valor_venda, 
                 item.status, 
-                item.id_categoria
+                item.id_categoria,
+                item.estoque_minimo,
             ) 
             print(f" (Alerta Washu: Item '{item.nome}' atualizado e usando ID: {item_existente.id})")
             return item_existente.id
         
         # Se não existe, insere um novo (Incluindo id_categoria)
-        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status, id_categoria) VALUES (%s, %s, %s, %s, %s) RETURNING id"
-        values = (item.nome, item.valor_compra, item.valor_venda, item.status, item.id_categoria)
+        query = "INSERT INTO itens (nome, valor_compra, valor_venda, status, id_categoria, estoque_minimo) VALUES (%s, %s, %s, %s, %s, %s) RETURNING id"
+        values = (item.nome, item.valor_compra, item.valor_venda, item.status, item.id_categoria, item.estoque_minimo)
         return self.db.execute_query(query, values, commit=True)
     
-    def editar_item(self, item_id: int, nome: str, valor_compra: float, valor_venda: float, status: str, id_categoria: Optional[int]):
+    def editar_item(self, item_id: int, nome: str, valor_compra: Optional[Decimal], valor_venda: Decimal, status: str, id_categoria: Optional[int], estoque_minimo: Optional[int] = None):
         """Atualiza os dados de um item existente, incluindo o status e a categoria."""
         # A query UPDATE deve ser completa para garantir a consistência de dados.
         query = """
@@ -43,10 +45,11 @@ class ItemService:
             valor_compra = %s, 
             valor_venda = %s, 
             status = %s, 
-            id_categoria = %s 
+            id_categoria = %s,
+            estoque_minimo = COALESCE(%s, estoque_minimo)
         WHERE id = %s
         """
-        values = (nome, valor_compra, valor_venda, status, id_categoria, item_id)
+        values = (nome, valor_compra, valor_venda, status, id_categoria, estoque_minimo, item_id)
         # Usamos commit=True aqui para a operação atômica de atualização.
         return self.db.execute_query(query, values, commit=True)
     
@@ -56,7 +59,7 @@ class ItemService:
 
     def buscar_item_por_nome(self, nome: str) -> Optional[Item]:
         """Busca um item pelo nome e retorna o objeto Item."""
-        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria FROM itens WHERE nome = %s"
+        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria, estoque_minimo FROM itens WHERE nome = %s"
         columns, data = self.db.execute_query(query, (nome,), fetch_one=True)
         if data:
             return Item(**dict(zip(columns, data)))
@@ -64,7 +67,7 @@ class ItemService:
     
     def buscar_item_por_id(self, item_id: int) -> Optional[Item]:
         """Busca um item pelo ID e retorna o objeto Item."""
-        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria FROM itens WHERE id = %s"
+        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria, estoque_minimo FROM itens WHERE id = %s"
         columns, data = self.db.execute_query(query, (item_id,), fetch_one=True)
         if data:
             return Item(**dict(zip(columns, data)))
@@ -72,7 +75,7 @@ class ItemService:
     
     def buscar_todos_itens(self, apenas_ativos: bool = False) -> List[Item]:
         """Busca todos os itens e os converte em objetos Item."""
-        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria FROM itens"
+        query = "SELECT id, nome, valor_compra, valor_venda, status, id_categoria, estoque_minimo FROM itens"
         if apenas_ativos:
             query += " WHERE status = 'Ativo'"
         query += " ORDER BY nome"

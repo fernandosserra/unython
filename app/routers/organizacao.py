@@ -20,6 +20,7 @@ def get_config(db: DBDependency):
         termo_assistido_plural=config.termo_assistido_plural,
         termo_atendente=config.termo_atendente,
         termo_servico=config.termo_servico,
+        termo_atividade=config.termo_atividade,
     )
 
 
@@ -27,6 +28,8 @@ def get_config(db: DBDependency):
 def update_config(payload: OrganizacaoConfigSchema, db: DBDependency):
     """Atualiza o vocabulário e tipo da organização (ex: Terreiro, Igreja, Albergue, Clínica)."""
     service = OrganizacaoService(db)
+    if "termo_atividade" not in payload.model_fields_set:
+        payload = payload.model_copy(update={"termo_atividade": service.obter_configuracoes().termo_atividade})
     ok = service.salvar_configuracoes(
         nome_organizacao=payload.nome_organizacao,
         tipo_organizacao=payload.tipo_organizacao,
@@ -34,6 +37,7 @@ def update_config(payload: OrganizacaoConfigSchema, db: DBDependency):
         termo_assistido_plural=payload.termo_assistido_plural,
         termo_atendente=payload.termo_atendente,
         termo_servico=payload.termo_servico,
+        termo_atividade=payload.termo_atividade,
     )
     if not ok:
         raise HTTPException(

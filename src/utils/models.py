@@ -17,6 +17,7 @@ class OrganizacaoConfig:
     termo_assistido_plural: str = "Consulentes"
     termo_atendente: str = "Médium / Cambone"
     termo_servico: str = "Passe / Consulta"
+    termo_atividade: str = "Entidade / Serviço"
     id: Optional[int] = 1
 
 
@@ -46,7 +47,7 @@ class Usuario:
 @dataclass
 class Item:
     nome: str
-    valor_compra: Decimal
+    valor_compra: Optional[Decimal]
     valor_venda: Decimal
     id_categoria: Optional[int] = None
     status: str = "Ativo"
@@ -91,6 +92,7 @@ class Agendamento:
     tipo_servico: str
     id_evento: int
     id_facilitador: Optional[int] = None
+    id_atividade: Optional[int] = None
     data_hora: datetime = field(default_factory=datetime.now)
     status: str = "Aguardando"  # 'Aguardando', 'Chamado', 'Atendido', 'Ausente'
     compareceu: str = "Pendente"  # 'Pendente', 'Sim', 'Nao'
@@ -134,6 +136,8 @@ class MovimentoFinanceiro:
     categoria: str = "Geral"  # Ex: 'Aluguel', 'Doacao', 'Salario'
     id_evento: Optional[int] = None  # Vinculo a um evento específico
     status: str = "Ativo"  # 'Ativo' ou 'Cancelado'
+    nome_doador: Optional[str] = None
+    forma_pagamento: Optional[str] = None
 
 
 @dataclass

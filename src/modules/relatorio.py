@@ -55,7 +55,7 @@ class RelatorioService:
         INNER JOIN 
             pessoas p ON a.id_pessoa = p.id
         LEFT JOIN
-            usuarios u ON a.id_facilitador = u.id
+            facilitadores u ON a.id_facilitador = u.id
         WHERE
             a.status = 'Agendado'
         ORDER BY 
@@ -99,9 +99,10 @@ class RelatorioService:
         query = """
         SELECT
             TO_CHAR(v.data_venda, 'YYYY-MM') AS mes,
-            SUM(
+            CASE WHEN COUNT(*) FILTER (WHERE i.valor_compra IS NULL) > 0 THEN NULL ELSE SUM(
                 iv.quantidade * (iv.valor_unitario - i.valor_compra)
-            ) AS lucro_bruto_total
+            ) END AS lucro_bruto_total,
+            COUNT(*) FILTER (WHERE i.valor_compra IS NULL) AS itens_sem_custo
         FROM 
             vendas v
         INNER JOIN 

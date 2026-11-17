@@ -26,10 +26,14 @@ class EventoService:
 
     def abrir_evento_existente(self, id_evento: int) -> bool:
         """Abre um evento previamente agendado, garantindo que seja o evento ativo."""
-        # Fecha qualquer outro que esteja aberto
-        self.db.execute_query("UPDATE eventos SET status = 'Fechado' WHERE status = 'Aberto'", commit=True)
-        query = "UPDATE eventos SET status = 'Aberto' WHERE id = %s"
-        return bool(self.db.execute_query(query, (id_evento,), commit=True))
+        query = """
+        UPDATE eventos
+        SET status = CASE WHEN id = %s THEN 'Aberto' ELSE 'Fechado' END
+        WHERE (status = 'Aberto' OR id = %s)
+          AND EXISTS (SELECT 1 FROM eventos alvo WHERE alvo.id = %s AND alvo.status = 'Agendado')
+        """
+        return bool(self.db.execute_query(query, (id_evento, id_evento, id_evento),
+                                          commit=True, return_rowcount=True))
 
     def fechar_evento(self, id_evento: int) -> bool:
         query = "UPDATE eventos SET status = 'Fechado' WHERE id = %s"

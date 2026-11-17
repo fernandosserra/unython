@@ -269,7 +269,8 @@ class DatabaseManager:
             termo_assistido VARCHAR(50) NOT NULL DEFAULT 'Consulente',
             termo_assistido_plural VARCHAR(50) NOT NULL DEFAULT 'Consulentes',
             termo_atendente VARCHAR(50) NOT NULL DEFAULT 'Médium / Cambone',
-            termo_servico VARCHAR(50) NOT NULL DEFAULT 'Passe / Consulta'
+            termo_servico VARCHAR(50) NOT NULL DEFAULT 'Passe / Consulta',
+            termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço'
         );
         """
 
@@ -321,10 +322,11 @@ class DatabaseManager:
         CREATE TABLE IF NOT EXISTS itens (
             id SERIAL PRIMARY KEY,
             nome VARCHAR(255) NOT NULL UNIQUE,
-            valor_compra NUMERIC(10, 2) NOT NULL,
+            valor_compra NUMERIC(10, 2),
             valor_venda NUMERIC(10, 2) NOT NULL,
             status VARCHAR(50) DEFAULT 'Ativo',
             id_categoria INTEGER,
+            estoque_minimo INTEGER NOT NULL DEFAULT 0 CHECK (estoque_minimo >= 0),
             FOREIGN KEY (id_categoria) REFERENCES categorias(id)
         );
         """
@@ -345,11 +347,32 @@ class DatabaseManager:
         );
         """
 
+        facilitadores_table_query = """
+        CREATE TABLE IF NOT EXISTS facilitadores (
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            especialidade VARCHAR(255),
+            observacoes TEXT,
+            status VARCHAR(50) NOT NULL DEFAULT 'Ativo',
+            id_usuario_origem INTEGER UNIQUE REFERENCES usuarios(id)
+        );
+        """
+
+        atividades_table_query = """
+        CREATE TABLE IF NOT EXISTS atividades_atendimento (
+            id SERIAL PRIMARY KEY,
+            nome VARCHAR(255) NOT NULL,
+            descricao TEXT,
+            status VARCHAR(50) NOT NULL DEFAULT 'Ativo'
+        );
+        """
+
         agendamentos_table_query = """
         CREATE TABLE IF NOT EXISTS agendamentos (
             id SERIAL PRIMARY KEY,
             id_pessoa INTEGER NOT NULL,
             id_facilitador INTEGER,
+            id_atividade INTEGER,
             data_hora TIMESTAMP WITHOUT TIME ZONE NOT NULL DEFAULT NOW(),
             tipo_servico VARCHAR(100),
             status VARCHAR(50) DEFAULT 'Aguardando',
@@ -360,7 +383,8 @@ class DatabaseManager:
             ordem_chegada INTEGER DEFAULT 1,
             observacoes TEXT,
             FOREIGN KEY (id_pessoa) REFERENCES pessoas(id),
-            FOREIGN KEY (id_facilitador) REFERENCES usuarios(id),
+            FOREIGN KEY (id_facilitador) REFERENCES facilitadores(id),
+            FOREIGN KEY (id_atividade) REFERENCES atividades_atendimento(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
         );
         """
@@ -401,6 +425,8 @@ class DatabaseManager:
             descricao TEXT,
             categoria VARCHAR(100),
             id_evento INTEGER,
+            nome_doador VARCHAR(255),
+            forma_pagamento VARCHAR(100),
             status VARCHAR(50) NOT NULL DEFAULT 'Ativo',
             FOREIGN KEY (id_usuario) REFERENCES usuarios(id),
             FOREIGN KEY (id_evento) REFERENCES eventos(id)
@@ -414,11 +440,41 @@ class DatabaseManager:
         ALTER TABLE pessoas ADD COLUMN IF NOT EXISTS observacoes TEXT;
 
         ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS nome_organizacao VARCHAR(150) DEFAULT 'Terreiro Caboclo Pena Branca';
+        ALTER TABLE organizacao_config ADD COLUMN IF NOT EXISTS termo_atividade VARCHAR(50) NOT NULL DEFAULT 'Entidade / Serviço';
 
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS numero_senha VARCHAR(20);
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS preferencial BOOLEAN DEFAULT FALSE;
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS ordem_chegada INTEGER DEFAULT 1;
         ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS observacoes TEXT;
+        ALTER TABLE agendamentos ADD COLUMN IF NOT EXISTS id_atividade INTEGER REFERENCES atividades_atendimento(id);
+        ALTER TABLE itens ADD COLUMN IF NOT EXISTS estoque_minimo INTEGER NOT NULL DEFAULT 0 CHECK (estoque_minimo >= 0);
+        ALTER TABLE itens ALTER COLUMN valor_compra DROP NOT NULL;
+        ALTER TABLE movimentos_financeiros ADD COLUMN IF NOT EXISTS nome_doador VARCHAR(255);
+        ALTER TABLE movimentos_financeiros ADD COLUMN IF NOT EXISTS forma_pagamento VARCHAR(100);
+
+        -- Converte os vínculos antigos com usuários uma única vez, preservando o histórico.
+        DO $$
+        DECLARE antiga_fk record;
+        BEGIN
+            FOR antiga_fk IN
+                SELECT conname FROM pg_constraint
+                WHERE conrelid = 'agendamentos'::regclass
+                  AND confrelid = 'usuarios'::regclass AND contype = 'f'
+                  AND conkey = ARRAY[(SELECT attnum FROM pg_attribute
+                                      WHERE attrelid = 'agendamentos'::regclass
+                                        AND attname = 'id_facilitador')]::smallint[]
+            LOOP
+                INSERT INTO facilitadores (nome, especialidade, id_usuario_origem)
+                SELECT u.nome, u.funcao, u.id FROM usuarios u
+                WHERE EXISTS (SELECT 1 FROM agendamentos a WHERE a.id_facilitador = u.id)
+                ON CONFLICT (id_usuario_origem) DO NOTHING;
+                EXECUTE format('ALTER TABLE agendamentos DROP CONSTRAINT %I', antiga_fk.conname);
+                UPDATE agendamentos a SET id_facilitador = f.id
+                FROM facilitadores f WHERE f.id_usuario_origem = a.id_facilitador;
+                ALTER TABLE agendamentos ADD CONSTRAINT agendamentos_facilitador_catalogo_fk
+                    FOREIGN KEY (id_facilitador) REFERENCES facilitadores(id);
+            END LOOP;
+        END $$;
         """
 
         indexes_query = """
@@ -440,6 +496,8 @@ class DatabaseManager:
             categorias_table_query,
             itens_table_query,
             estoque_table_query,
+            facilitadores_table_query,
+            atividades_table_query,
             agendamentos_table_query,
             vendas_table_query,
             itens_venda_table_query,

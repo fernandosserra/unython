@@ -37,7 +37,7 @@ def listar_eventos(db: DBDependency, data_inicio: Optional[date] = None, data_fi
 def criar_evento_agendado(
     nome: str,
     data_evento: date,
-    tipo: str = "Gira / Culto / Atendimento",
+    tipo: str = "Atendimento",
     status: str = "Agendado",
     db: DBDependency = None,
 ):
